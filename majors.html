@@ -31,20 +31,16 @@
             <button id="save-btn" class="btn-main" style="width: 100%; margin-top: 20px;">選択を保存</button>
         </div>
     </div>
-
     <script>
         let currentUser = null;
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const majorsCheckboxContainer = document.getElementById('majors-checkbox-container');
         const saveBtn = document.getElementById('save-btn');
-        
+
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'index.html';
-                return;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return; }
             currentUser = session.user;
             document.getElementById('main-app').style.display = 'block';
             userDisplay.textContent = `${currentUser.email} でログイン中`;
@@ -53,20 +49,22 @@
 
         async function initializeApp() {
             try {
-                const { data, error } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
-                if (error && error.code !== 'PGRST116') throw error;
+                const { data: rules, error: rulesError } = await supabaseClient.from('major_rules').select('name');
+                if (rulesError) throw rulesError;
                 
-                const customRules = data?.custom_rules || [];
-                const targetMajors = data?.target_majors || [];
+                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('target_majors').eq('id', currentUser.id).single();
+                if (userError && userError.code !== 'PGRST116') throw userError;
+                
+                const targetMajors = userData?.target_majors || [];
                 
                 majorsCheckboxContainer.innerHTML = '';
-                if (customRules.length === 0) {
-                    majorsCheckboxContainer.innerHTML = '<p style="text-align:center; color: #666;">「ルール設定」ページで、先にカスタム学類を作成してください。</p>';
+                if (rules.length === 0) {
+                    majorsCheckboxContainer.innerHTML = '<p style="text-align:center; color: #666;">利用可能な学類ルールがありません。「ルール設定」ページで作成してください。</p>';
                     saveBtn.disabled = true;
                     return;
                 }
 
-                customRules.forEach(rule => {
+                rules.forEach(rule => {
                     const id = `major-${rule.name.replace(/\s/g, '-')}`;
                     const isChecked = targetMajors.includes(rule.name);
                     const div = document.createElement('div');
@@ -81,33 +79,13 @@
         }
 
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
-
-        logoutBtn.addEventListener('click', async () => {
-            await supabaseClient.auth.signOut();
-            window.location.href = 'index.html';
-        });
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         saveBtn.addEventListener('click', async () => {
-            const selectedMajors = Array.from(document.querySelectorAll('.major-checkbox:checked'))
-                .map(checkbox => checkbox.value);
-            
-            const { data: existingData } = await supabaseClient.from('user_data').select('subjects, custom_rules').eq('id', currentUser.id).single();
-
-            const updatedData = { 
-                id: currentUser.id, 
-                subjects: existingData ? existingData.subjects : [],
-                custom_rules: existingData ? existingData.custom_rules : [],
-                target_majors: selectedMajors, 
-                updated_at: new Date()
-            };
-
-            const { error } = await supabaseClient.from('user_data').upsert(updatedData);
-
-            if (error) {
-                alert('保存に失敗しました: ' + error.message);
-            } else {
-                alert('志望学類を保存しました。');
-            }
+            const selectedMajors = Array.from(document.querySelectorAll('.major-checkbox:checked')).map(checkbox => checkbox.value);
+            const { error } = await supabaseClient.from('user_data').upsert({ id: currentUser.id, target_majors: selectedMajors, updated_at: new Date() });
+            if (error) { alert('保存に失敗しました: ' + error.message); } 
+            else { alert('志望学類を保存しました。'); }
         });
     </script>
 </body>
