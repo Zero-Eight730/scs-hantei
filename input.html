@@ -108,8 +108,8 @@
             } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
             await loadSubjects();
         }
-        
-      // === ▼▼▼ ここからが修正箇所です ▼▼▼ ===
+
+        // === ▼▼▼ ここからが修正箇所です ▼▼▼ ===
         function createSubjectRow(subject = {}) {
             const row = document.createElement('tr');
             row.innerHTML = `
