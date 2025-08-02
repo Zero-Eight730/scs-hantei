@@ -1,20 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
-/* --- ▼▼▼ 新しい水色ベースのカラーパレット ▼▼▼ --- */
 :root {
-    --primary-color: #0077b6;   /* メインの青色 */
-    --secondary-color: #00b4d8; /* アクセントの水色 */
-    --danger-color: #f72585;    /* 鮮やかなピンク */
-    --success-color: #43aa8b;   /* 緑 */
-    --warning-color: #fca311;   /* オレンジ */
-    --light-bg: #f0f8ff;      /* 全体の背景色 (ごく薄い水色 - AliceBlue) */
-    --white: #ffffff;         /* カードなどの背景色 */
-    --text-dark: #2c3e50;      /* メインのテキスト色 (濃いスレートグレー) */
-    --text-light: #f8f9fa;     /* ボタンなどのテキスト色 */
+    --primary-color: #0077b6;
+    --secondary-color: #00b4d8;
+    --danger-color: #f72585;
+    --success-color: #43aa8b;
+    --warning-color: #fca311;
+    --light-bg: #f0f8ff;
+    --white: #ffffff;
+    --text-dark: #2c3e50;
+    --text-light: #f8f9fa;
     --border-color: #dee2e6;
     --shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
-/* --- ▲▲▲ ここまで ▲▲▲ --- */
 
 body {
     font-family: 'Noto Sans JP', sans-serif;
@@ -117,6 +115,7 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
     font-size: 16px;
     transition: border-color 0.2s, box-shadow 0.2s;
     box-sizing: border-box;
+    width: 100%;
 }
 .auth-container input {
     display: block;
@@ -152,13 +151,12 @@ table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 20px;
-    table-layout: fixed;
 }
 th, td {
     border: 1px solid var(--border-color);
     padding: 12px;
     text-align: left;
-    word-break: break-all;
+    word-break: break-word;
 }
 th {
     background-color: var(--primary-color);
@@ -288,7 +286,7 @@ tr:nth-child(even) {
 .account-section button { display: block; width: auto; margin-left: auto; }
 
 .rule-editor { border: 1px solid var(--border-color); border-radius: 8px; margin-top: 20px; padding: 20px; }
-.rule-editor-header { display: flex; justify-content: space-between; align-items: center; }
+.rule-editor-header { display: flex; justify-content: space-between; align-items: center; gap: 10px;}
 .rule-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 15px 0; }
 .group-box { border: 1px solid #aaa; border-radius: 5px; padding: 15px; margin-top: 15px; background-color: #fafafa;}
 .subjects-container { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; padding: 10px; background-color: #f0f2f5; border-radius: 5px; min-height: 30px; }
@@ -316,5 +314,9 @@ tr:nth-child(even) {
     .result-card .judgment { font-size: 2.5em; }
     .result-card .score { font-size: 1.2em; }
     .result-card ul { column-count: 1; }
-    td, th { font-size: 0.9em; }
+    td, th { font-size: 0.9em; padding: 8px; }
+    table { table-layout: auto; } /* テーブルの幅を自動調整 */
+    #subjects-table .col-name { width: auto; }
+    #subjects-table .col-credits, #subjects-table .col-grade, #subjects-table .col-actions { width: 80px; }
+    .subject-credits, .subject-grade { width: 100%; }
 }
