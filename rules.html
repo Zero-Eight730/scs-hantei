@@ -30,7 +30,9 @@
             <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
         </div>
     </div>
+
     <datalist id="master-subjects-list"></datalist>
+
     <script>
         let currentUser = null;
         let masterSubjects = [];
@@ -100,8 +102,8 @@
             majorDiv.className = 'rule-editor';
             majorDiv.dataset.majorId = rule.id || `new-${majorIndex}`;
             let groupsHTML = '';
-            (rule.groups || []).forEach((group, groupIndex) => {
-                groupsHTML += createGroupHTML(group);
+            (rule.groups || []).forEach((group) => {
+                groupsHTML += createGroupHTML(group, isOwner);
             });
             majorDiv.innerHTML = `
                 <div class="rule-editor-header">
@@ -115,13 +117,13 @@
                     <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)" ${!isOwner ? 'disabled' : ''}>
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
-                ${isOwner ? '<button class="btn-add add-group-btn">科目グループを追加</button>' : ''}
-                ${isOwner ? `<button class="btn-main save-one-rule-btn" data-id="${rule.id}" style="width:100%; margin-top:10px;">このルールを保存</button>` : ''}
+                ${isOwner || !rule.id ? '<button class="btn-add add-group-btn">科目グループを追加</button>' : ''}
+                ${isOwner || !rule.id ? `<button class="btn-main save-one-rule-btn" data-id="${rule.id || ''}" style="width:100%; margin-top:10px;">このルールを保存</button>` : ''}
             `;
             return majorDiv;
         }
         
-        function createGroupHTML(group) {
+        function createGroupHTML(group, isOwner) {
             let subjectsHTML = '';
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
@@ -130,17 +132,18 @@
                 <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
-                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み">
-                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名" ${!isOwner ? 'disabled' : ''}>
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み" ${!isOwner ? 'disabled' : ''}>
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限" ${!isOwner ? 'disabled' : ''}>
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
+                    ${isOwner ? `
                     <div class="subject-add-area">
                         <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
                         <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                    </div>
-                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
+                    </div>` : ''}
+                    ${isOwner ? '<button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>' : ''}
                 </div>
             `;
         }
@@ -161,14 +164,36 @@
 
             if (target.classList.contains('remove-major-btn')) {
                 const ruleId = target.dataset.id;
+                if (!ruleId) { // 新しく追加されたばかりの要素
+                    ruleEditor.remove();
+                    return;
+                }
                 const ruleName = ruleEditor.querySelector('.major-name').value;
                 if (confirm(`「${ruleName}」を完全に削除しますか？この操作は元に戻せません。`)) {
                     const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
                     if (error) alert('削除に失敗: ' + error.message);
                     else { alert('削除しました。'); await loadMajorRules(); }
                 }
+            } else if (target.classList.contains('add-group-btn')) {
+                const groupsContainer = ruleEditor.querySelector('.groups-container');
+                groupsContainer.insertAdjacentHTML('beforeend', createGroupHTML({}, true));
+            } else if (target.classList.contains('remove-group-btn')) {
+                target.closest('.group-box').remove();
+            } else if (target.classList.contains('remove-subject-tag')) {
+                target.parentElement.remove();
+            } else if (target.classList.contains('add-subject-to-group-btn')) {
+                const input = target.previousElementSibling;
+                const subjectName = input.value.trim();
+                if (subjectName) {
+                    const subjectsContainer = input.closest('.group-box').querySelector('.subjects-container');
+                    const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
+                    if (!existingSubjects.includes(subjectName)) {
+                        subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
+                    }
+                    input.value = '';
+                }
             } else if (target.classList.contains('save-one-rule-btn')) {
-                const ruleId = target.dataset.id.startsWith('new-') ? null : target.dataset.id;
+                const ruleId = target.dataset.id;
                 const ruleData = {
                     name: ruleEditor.querySelector('.major-name').value.trim(),
                     rule_data: {
@@ -188,8 +213,10 @@
 
                 let query;
                 if (ruleId) {
+                    // 既存ルールの更新
                     query = supabaseClient.from('major_rules').update(ruleData).eq('id', ruleId);
                 } else {
+                    // 新規ルールの挿入
                     query = supabaseClient.from('major_rules').insert({ ...ruleData, user_id: currentUser.id });
                 }
                 const { error } = await query;
