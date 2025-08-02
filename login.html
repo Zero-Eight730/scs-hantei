@@ -32,7 +32,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
-                window.location.href = '/input.html';
+                window.location.href = './input.html';
             }
         });
 
@@ -62,7 +62,7 @@
             if (error) {
                 authMessage.textContent = 'ログインエラー: ' + error.message;
             } else {
-                window.location.href = '/input.html';
+                window.location.href = './input.html';
             }
         });
     </script>
