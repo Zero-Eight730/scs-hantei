@@ -15,7 +15,7 @@
             <strong>成績参照</strong>
             <a href="judge.html">判定実行</a>
             <a href="majors.html">志望学類登録</a>
-            <a href="rules.html">ルール設定</a>
+            <a href="rules.html" class="admin-only">ルール設定</a>
             <a href="account.html">アカウント管理</a>
         </nav>
         <div class="user-status">
@@ -50,8 +50,8 @@
             if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            document.querySelectorAll('a[href="rules.html"]').forEach(link => {
-                if (!isAdmin) { link.style.display = 'none'; }
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
             });
             return { user, isAdmin };
         }
