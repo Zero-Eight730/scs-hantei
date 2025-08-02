@@ -16,7 +16,7 @@ button { padding: 10px 15px; font-size: 16px; font-weight: 500; color: white; bo
 button:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 button:disabled { background-color: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
 input[type="text"], input[type="email"], input[type="password"], input[type="number"], select { padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
-.auth-container input { display: block; width: 100%; margin: 15px auto; }
+.auth-container input, .auth-container select { display: block; width: 100%; margin: 15px auto; }
 #auth-message { color: var(--danger-color); height: 20px; margin-top: 15px; text-align: center; }
 .subject-name { width: 100%; }
 .subject-credits, .subject-grade { width: 100px; text-align: center; }
@@ -81,7 +81,10 @@ tr:nth-child(even) { background-color: #f8f9fa; }
 .major-selection-grid label { background-color: #f8f9fa; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; cursor: pointer; transition: all 0.2s; text-align: center; display: block; }
 .major-selection-grid input { display: none; }
 .major-selection-grid input:checked + label { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
-.admin-only { display: none; } /* 管理者用リンクをデフォルトで非表示 */
+.admin-only { display: none; }
+.roles-container { margin: 15px 0; padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; }
+.roles-container h5 { text-align: left; margin: 0 0 10px 0; }
+.roles-container label { margin-right: 15px; font-size: 0.9em; }
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
