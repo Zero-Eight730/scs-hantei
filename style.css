@@ -331,3 +331,10 @@ tr:nth-child(even) {
     #subjects-table { table-layout: auto; } 
     .subject-credits, .subject-grade { width: 100%; min-width: 70px; }
 }
+
+
+/* style.css に追加 */
+.panel h2 {
+    margin: 0;
+    /* 必要に応じて、見出しの下に少しスペースを追加 */
+    padding-bottom: 1rem; /* 例 */
