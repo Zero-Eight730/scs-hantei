@@ -155,30 +155,31 @@
             renderAllRules();
         });
 
+        // === ▼▼▼ イベントリスナーを修正 ▼▼▼ ===
         customMajorsContainer.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-major-btn')) {
-                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+            const target = e.target;
+            const ruleEditor = target.closest('.rule-editor');
+            if (!ruleEditor) return;
+            const majorIndex = parseInt(ruleEditor.dataset.majorIndex);
+
+            if (target.classList.contains('remove-major-btn')) {
                 if (confirm(`「${customRules[majorIndex].name}」を削除しますか？`)) {
                     customRules.splice(majorIndex, 1);
                     renderAllRules();
                 }
-            }
-            if (e.target.classList.contains('add-group-btn')) {
-                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+            } else if (target.classList.contains('add-group-btn')) {
                 if (!customRules[majorIndex].groups) customRules[majorIndex].groups = [];
                 customRules[majorIndex].groups.push({ name: '新しいグループ', weight: 1.0, cap: 10, subjects: [] });
                 renderAllRules();
-            }
-            if (e.target.classList.contains('remove-group-btn')) {
-                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
-                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
+            } else if (target.classList.contains('remove-group-btn')) {
+                const groupBox = target.closest('.group-box');
+                const groupIndex = parseInt(groupBox.dataset.groupIndex);
                 customRules[majorIndex].groups.splice(groupIndex, 1);
                 renderAllRules();
-            }
-            if (e.target.classList.contains('remove-subject-tag')) {
-                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
-                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
-                const subjectName = e.target.parentElement.textContent.slice(0, -1);
+            } else if (target.classList.contains('remove-subject-tag')) {
+                const groupBox = target.closest('.group-box');
+                const groupIndex = parseInt(groupBox.dataset.groupIndex);
+                const subjectName = target.parentElement.textContent.slice(0, -1);
                 const subjectIndex = customRules[majorIndex].groups[groupIndex].subjects.indexOf(subjectName);
                 if (subjectIndex > -1) {
                     customRules[majorIndex].groups[groupIndex].subjects.splice(subjectIndex, 1);
@@ -191,8 +192,14 @@
             if (e.target.classList.contains('subject-select')) {
                 const selectedSubject = e.target.value;
                 if (!selectedSubject) return;
-                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
-                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
+                const ruleEditor = e.target.closest('.rule-editor');
+                const groupBox = e.target.closest('.group-box');
+                const majorIndex = parseInt(ruleEditor.dataset.majorIndex);
+                const groupIndex = parseInt(groupBox.dataset.groupIndex);
+                
+                if (!customRules[majorIndex].groups[groupIndex].subjects) {
+                    customRules[majorIndex].groups[groupIndex].subjects = [];
+                }
                 if (!customRules[majorIndex].groups[groupIndex].subjects.includes(selectedSubject)) {
                     customRules[majorIndex].groups[groupIndex].subjects.push(selectedSubject);
                 }
