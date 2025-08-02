@@ -57,7 +57,6 @@
         const loadingStatus = document.getElementById('loading-status');
 
         async function checkSessionAndInitialize() {
-            // supabase → supabaseClient に修正
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
                 window.location.href = '/login.html';
@@ -119,13 +118,12 @@
             if (subjects && subjects.length > 0) {
                 subjects.forEach(createSubjectRow);
             } else {
-                createSubjectRow();
+                createSubjectRow(); 
             }
         }
-
+        
         async function loadSubjects() {
              try {
-                // supabase → supabaseClient に修正
                 const { data, error } = await supabaseClient
                     .from('user_data')
                     .select('subjects')
@@ -145,7 +143,6 @@
         });
 
         logoutBtn.addEventListener('click', async () => {
-            // supabase → supabaseClient に修正
             await supabaseClient.auth.signOut();
             window.location.href = '/login.html';
         });
@@ -191,10 +188,9 @@
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
             
-            // supabase → supabaseClient に修正
             const { data, error } = await supabaseClient
                 .from('user_data')
-                .upsert({ id: currentUser.id, subjects: subjects });
+                .upsert({ id: currentUser.id, subjects: subjects, updated_at: new Date() });
 
             if (error) {
                 alert('保存に失敗しました: ' + error.message);
