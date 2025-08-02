@@ -32,7 +32,8 @@
     <script>
         let currentUser = null;
         async function checkSessionAndLoad() {
-            const { data: { session }, error } = await supabase.auth.getSession();
+            // supabase → supabaseClient に修正
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
                 window.location.href = '/login.html';
                 return;
@@ -46,7 +47,8 @@
         async function loadAndDisplayGrades() {
             const tableBody = document.querySelector('#view-table tbody');
             try {
-                const { data, error } = await supabase
+                // supabase → supabaseClient に修正
+                const { data, error } = await supabaseClient
                     .from('user_data')
                     .select('subjects')
                     .eq('id', currentUser.id)
@@ -70,7 +72,8 @@
         }
         document.addEventListener('DOMContentLoaded', checkSessionAndLoad);
         document.getElementById('logout-btn').addEventListener('click', async () => {
-            await supabase.auth.signOut();
+            // supabase → supabaseClient に修正
+            await supabaseClient.auth.signOut();
             window.location.href = '/login.html';
         });
     </script>
