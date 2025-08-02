@@ -108,29 +108,42 @@
             } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
             await loadSubjects();
         }
+        
+      // === ▼▼▼ ここからが修正箇所です ▼▼▼ ===
         function createSubjectRow(subject = {}) {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td><input type="text" class="subject-name" value="${subject.name || ''}" placeholder="例：力学1"></td>
-                <td><input type="number" class="subject-credits" step="0.1" value="${subject.credits || ''}" placeholder="例：2.0"></td>
-                <td><input type="number" class="subject-grade" min="0" max="100" value="${subject.grade || ''}" placeholder="例：95"></td>
-                <td><button class="btn-remove">削除</button></td>
+                <td data-label="科目名">
+                    <input type="text" class="subject-name" value="${subject.name || ''}" placeholder="例：力学1">
+                </td>
+                <td data-label="単位数">
+                    <input type="number" class="subject-credits" step="0.1" value="${subject.credits || ''}" placeholder="2.0">
+                </td>
+                <td data-label="成績">
+                    <input type="number" class="subject-grade" min="0" max="100" value="${subject.grade || ''}" placeholder="95">
+                </td>
+                <td data-label="操作">
+                    <button class="btn-remove">削除</button>
+                </td>
             `;
-                        // スマホ用に下段をまとめるdivを作成
-            const bottomRow = document.createElement('div');
-            bottomRow.className = 'subject-row-bottom';
-            const creditsTd = row.querySelector('td:nth-child(2)');
-            const gradeTd = row.querySelector('td:nth-child(3)');
-            const actionsTd = row.querySelector('td:nth-child(4)');
-            bottomRow.appendChild(creditsTd);
-            bottomRow.appendChild(gradeTd);
-            bottomRow.appendChild(actionsTd);
             
-            // 科目名の下に挿入
-            row.querySelector('td:first-child').appendChild(bottomRow);
-
+            // スマホ用に下段をまとめるdivを作成し、tdを移動
+            const bottomRowDiv = document.createElement('div');
+            bottomRowDiv.className = 'subject-row-bottom';
+            
+            const creditsTd = row.cells[1];
+            const gradeTd = row.cells[2];
+            const actionsTd = row.cells[3];
+            
+            bottomRowDiv.appendChild(creditsTd);
+            bottomRowDiv.appendChild(gradeTd);
+            bottomRowDiv.appendChild(actionsTd);
+            
+            row.cells[0].appendChild(bottomRowDiv);
+            
             subjectsTableBody.appendChild(row);
         }
+        // === ▲▲▲ ここまでが修正箇所です ▲▲▲ ===
         function populateTable(subjects) {
             subjectsTableBody.innerHTML = '';
             if (subjects && subjects.length > 0) {
