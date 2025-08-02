@@ -2,28 +2,125 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>判定実行</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>判定実行 - 成績計算サイト</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
+        <nav>
+            <a href="/input.html">成績入力</a>
+            <a href="/view.html">成績参照</a>
+            <strong>判定実行</strong>
+        </nav>
+        <div class="user-status">
+             <span id="user-display"></span>
+             <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
+        <div class="panel">
+            <h2>判定実行</h2>
+            <p style="text-align:center;">保存されている最新の成績データを使用して、各学類の移行点を計算します。</p>
+            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
+            <div id="results-container"></div>
+        </div>
+    </div>
     <script>
+        let currentUser = null;
         let savedSubjects = [];
-        const RULES = { /* ... */ }; // RULESオブジェクトは変更なし
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const calculateBtn = document.getElementById('calculate-btn');
+        const resultsContainer = document.getElementById('results-container');
+        const RULES = {
+            '情報科学類（区分A）': { groups: [{ name: 'グループA', subjects: ['知能と情報科学', '計算と情報科学', 'システムと情報科学', '情報科学概論', '情報メディア入門', 'コンテンツ入門', '知識情報概論', '知識情報システム概説', '図書館概論'], weight: 1.0, cap: 2 }, { name: 'グループB', subjects: ['情報数学A', 'プログラミング入門A'], weight: 1.0, cap: 4 }, { name: 'グループC', subjects: ['微分積分A', '微分積分1', '微分積分2'], weight: 1.0, cap: 2 }, { name: 'グループD', subjects: ['線形代数A', '線形代数1', '線形代数2'], weight: 1.0, cap: 2 }], otherWeight: 0.1, totalCap: 20, passThreshold: 83.3, medianThreshold: 87.2 },
+            '情報科学類（区分B）': { otherWeight: 1.0, totalCap: 24, passThreshold: 87.5, medianThreshold: 89.9 },
+            '情報メディア創成学類': { otherWeight: 1.0, totalCap: 24, passThreshold: 90.6, medianThreshold: 92.4 },
+            '知識情報・図書館学類': { otherWeight: 1.0, totalCap: 24, passThreshold: 83.3, medianThreshold: 87.2 },
+            '物理学類': { prioritySubjects: ['力学1', '力学2', '力学3', '電磁気1', '電磁気2', '電磁気3', '物理学入門', '数学リテラシー1', '数学リテラシー2', '微分積分3', '線形代数3', '線形代数1', '線形代数2', '線形代数A', '微分積分A', '微分積分1', '微分積分2'], priorityWeight: 2.0, subCaps: [{ name: '微分積分枠', subjects: ['微分積分1', '微分積分2', '微分積分A'], cap: 2 }, { name: '線形代数枠', subjects: ['線形代数1', '線形代数2', '線形代数A'], cap: 2 }], otherWeight: 1.0, priorityCreditCap: 18, totalCap: 24, passThreshold: 91.9, medianThreshold: 94.6 }
+        };
 
-        // ... 認証チェックとデータ読込 ...
+        async function checkSessionAndInitialize() {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error || !session) { window.location.href = '/login.html'; return; }
+            currentUser = session.user;
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${currentUser.email} でログイン中`;
+            await loadInitialData();
+        }
+        
+        async function loadInitialData() {
+            try {
+                const { data, error } = await supabase.from('user_data').select('subjects').eq('id', currentUser.id).single();
+                if (error && error.code !== 'PGRST116') throw new Error('保存済みデータがありません。');
+                savedSubjects = (data ? data.subjects : []).map(s => ({
+                    name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade)
+                })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
+            } catch (e) {
+                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message} 入力ページで成績を保存してください。</p>`;
+                calculateBtn.disabled = true;
+            }
+        }
 
-        async function renderResultCard(majorName, result, judgment, percentage) {
-            // ... カードのHTMLを生成 ...
-            // ランキングと偏差値の取得をsupabase.rpc()に変更
-            const { data, error } = await supabase.rpc('get_rank_and_deviation', {
-                major_name: majorName
+        calculateBtn.addEventListener('click', () => {
+            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。入力ページで成績を保存してください。'); return; }
+            resultsContainer.innerHTML = '';
+            const majorsToCalculate = ['情報科学類（区分A）', '情報科学類（区分B）', '情報メディア創成学類', '知識情報・図書館学類', '物理学類'];
+            majorsToCalculate.forEach(majorName => {
+                const rule = RULES[majorName];
+                let result;
+                if (majorName === '情報科学類（区分A）') result = calculateInfoSciA(savedSubjects, rule);
+                else if (majorName === '物理学類') result = calculatePhysics(savedSubjects, rule);
+                else result = calculateSimpleMajor(savedSubjects, rule);
+                const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+                const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold; const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
+                let judgment, judgmentClass;
+                if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
+                else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
+                else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
+                else if (percentage >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
+                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
+                renderResultCard(majorName, result, judgment, judgmentClass, percentage);
             });
-            if (data) {
-                // ... 取得したdataで順位・偏差値を表示 ...
+        });
+        
+        document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
+        logoutBtn.addEventListener('click', async () => { await supabase.auth.signOut(); window.location.href = '/login.html'; });
+
+        function normalizeName(name) { if (typeof name !== 'string') return ''; return name.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, ''); }
+        function calculateInfoSciA(subjects, rule) { /* ... (Implementation from previous turn) ... */ }
+        function calculateSimpleMajor(subjects, rule) { /* ... (Implementation from previous turn) ... */ }
+        function calculatePhysics(subjects, rule) { /* ... (Implementation from previous turn) ... */ }
+
+        async function renderResultCard(majorName, result, judgment, judgmentClass, percentage) {
+            const card = document.createElement('div');
+            card.className = `result-card`;
+            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
+            const safeMajorName = majorName.replace(/[\s()（）]/g, '');
+            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => `...`).join('') + '</ul>' : '<p>計算対象なし</p>';
+            card.innerHTML = `
+                <div class="card-header"><h4>${majorName}</h4></div>
+                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
+                <div class="details-display">
+                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
+                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
+                </div>
+                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
+            `;
+            resultsContainer.appendChild(card);
+            try {
+                const { data, error } = await supabase.rpc('get_rank_and_deviation', { major_name: majorName });
+                if (error) throw new Error(error.message);
+                if (!data || data.length === 0) throw new Error('スコア未登録');
+                const rankData = data[0];
+                document.getElementById(`rank-${safeMajorName}`).innerHTML = `
+                    <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
+                    <div class="detail-item" style="border-bottom: none;"><span class="label">順位</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
+                `;
+            } catch (error) {
+                document.getElementById(`rank-${safeMajorName}`).innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
             }
         }
     </script>
