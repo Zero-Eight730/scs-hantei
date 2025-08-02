@@ -86,3 +86,12 @@ tr:nth-child(even) { background-color: #f8f9fa; }
     .result-card ul { column-count: 1; }
     td, th { font-size: 0.9em; }
 }
+.subject-add-area {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.subject-add-area input {
+    flex-grow: 1;
+}
