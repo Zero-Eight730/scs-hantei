@@ -23,7 +23,7 @@
         </div>
         <div class="panel">
             <h2>判定実行</h2>
-            <p style="text-align:center;">「志望学類登録」で選択した学類の移行点を計算します。</p>
+            <p style="text-align:center;">保存されている最新の成績データを使用して、各学類の移行点を計算します。</p>
             <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
             <div id="results-container"></div>
         </div>
@@ -31,13 +31,16 @@
     <script>
         let currentUser = null;
         let savedSubjects = [];
-        let allPublicRules = [];
-        let targetMajors = [];
+        let customRules = [];
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const calculateBtn = document.getElementById('calculate-btn');
         const resultsContainer = document.getElementById('results-container');
         
+        const RULES = {
+            // ... (RULESオブジェクトは変更ありません)
+        };
+
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) { window.location.href = 'index.html'; return; }
@@ -49,14 +52,14 @@
         
         async function loadInitialData() {
             try {
-                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
+                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, custom_rules').eq('id', currentUser.id).single();
                 if (userError && userError.code !== 'PGRST116') throw userError;
                 savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
-                targetMajors = userData?.target_majors || [];
-
+                
+                // 全ユーザー共通のルールを読み込む
                 const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
                 if (rulesError) throw rulesError;
-                allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
+                customRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
 
             } catch (e) {
                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
@@ -69,19 +72,32 @@
 
         calculateBtn.addEventListener('click', async () => {
             if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
-            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
             
             resultsContainer.innerHTML = '<p style="text-align:center;">スコアを計算・更新中...</p>';
-            
+
             // スコアを更新するために保存APIを叩く
-            const { data: existingData } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
-            const { error: saveError } = await supabaseClient.from('user_data').upsert({ id: currentUser.id, subjects: savedSubjects, custom_rules: existingData?.custom_rules, target_majors: existingData?.target_majors, updated_at: new Date() });
+            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects, custom_rules, target_majors').eq('id', currentUser.id).single();
+            if(fetchError && fetchError.code !== 'PGRST116') { alert('データ取得エラー: ' + fetchError.message); return; }
+
+            const { error: saveError } = await supabaseClient.from('user_data').upsert({ 
+                id: currentUser.id, 
+                subjects: savedSubjects, 
+                custom_rules: existingData?.custom_rules || [], 
+                target_majors: existingData?.target_majors || [],
+                updated_at: new Date() 
+            });
 
             if(saveError){ alert("スコアの更新に失敗しました: " + saveError.message); return; }
 
             resultsContainer.innerHTML = '';
+
+            const targetMajors = existingData?.target_majors || [];
+            if (targetMajors.length === 0) {
+                 resultsContainer.innerHTML = `<p style="text-align:center;">計算対象の学類がありません。「志望学類登録」ページで設定してください。</p>`;
+                 return;
+            }
             
-            const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
+            const rulesToCalculate = customRules.filter(rule => targetMajors.includes(rule.name));
             
             rulesToCalculate.forEach(rule => {
                 const result = calculateCustomMajor(savedSubjects, rule);
@@ -140,10 +156,15 @@
             const card = document.createElement('div');
             card.className = `result-card`;
             card.style.borderTopColor = `var(--grade-${judgment}-color)`;
-            const safeMajorName = majorName.replace(/[\s()（）]/g, '');
+
+            // --- ▼▼▼ ここからが修正箇所です ▼▼▼ ---
+            // majorNameがundefinedやnullの場合でもエラーにならないように、フォールバックを追加
+            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
+            // --- ▲▲▲ ここまでが修正箇所です ▲▲▲
+
             let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => `<li class="status-included">${item.text}</li>`).join('') + '</ul>' : '<p>計算対象なし</p>';
             card.innerHTML = `
-                <div class="card-header"><h4>${majorName}</h4></div>
+                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
                 <div class="details-display">
                     <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
