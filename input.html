@@ -84,7 +84,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['科目名'] ? row['科目名'].trim() : '';
+                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
@@ -224,15 +224,15 @@
 
                 allRules.forEach(rule => {
                     const result = calculateCustomMajor(subjectsForCalc, rule);
+                    // ★ ここが重要： 'user_id' を完全に削除し、正しい列名のみを使用する
                     scoresToUpsert.push({
-                        id: currentUser.id, // ★ ここが重要：列名は 'id'
+                        id: currentUser.id,
                         major: rule.name,
                         score: result.score
                     });
                 });
                 
                 if (scoresToUpsert.length > 0) {
-                    // ★ onConflictも 'id, major' に修正
                     const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
