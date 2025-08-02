@@ -8,6 +8,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="supabase-client.js"></script>
+    <script src="common.js"></script> 
+    <style>
+        .rule-editor-body {
+            display: flex;
+            gap: 20px;
+        }
+        .rule-editor-main-content {
+            flex-grow: 1;
+        }
+        .roles-container {
+            flex-shrink: 0;
+            width: 150px; /* ロールリストの幅を固定 */
+            padding: 10px;
+            border-left: 1px solid #ddd;
+        }
+    </style>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
@@ -138,15 +154,19 @@
                     <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">削除</button>
                 </div>
                 <p style="font-size:0.8em; color:#666; text-align:right; margin:0;">作成者: ${rule.userId === currentUser.id ? 'あなた' : '他の管理者'}</p>
-                ${rolesHTML}
-                <div class="rule-settings-grid">
-                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
-                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
-                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
+                <div class="rule-editor-body">
+                    ${rolesHTML}
+                    <div class="rule-editor-main-content">
+                        <div class="rule-settings-grid">
+                            <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
+                            <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
+                            <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
+                            <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
+                        </div>
+                        <div class="groups-container">${groupsHTML}</div>
+                        <button class="btn-add add-group-btn">科目グループを追加</button>
+                    </div>
                 </div>
-                <div class="groups-container">${groupsHTML}</div>
-                <button class="btn-add add-group-btn">科目グループを追加</button>
                 <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
             `;
             return majorDiv;
