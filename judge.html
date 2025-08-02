@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
+    <script src="common.js"></script>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
@@ -74,7 +75,6 @@
             
             resultsContainer.innerHTML = '<p style="text-align:center;">スコアを計算・更新中...</p>';
             
-            // スコアを更新するために保存APIを叩く
             const { data: existingData } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
             const { error: saveError } = await supabaseClient.from('user_data').upsert({ id: currentUser.id, subjects: savedSubjects, custom_rules: existingData?.custom_rules, target_majors: existingData?.target_majors, updated_at: new Date() });
 
@@ -89,41 +89,6 @@
                 renderResultCard(rule.name, result, rule);
             });
         });
-
-        function normalizeName(name) { if (typeof name !== 'string') return ''; return name.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, ''); }
-
-        function calculateCustomMajor(subjects, rule) {
-            let remainingSubjects = JSON.parse(JSON.stringify(subjects));
-            let breakdown = []; let totalScore = 0; let totalCredits = 0; let maxScore = 0;
-            const includedNames = new Set();
-            (rule.groups || []).forEach(group => {
-                let groupSubjects = remainingSubjects.filter(s => (group.subjects || []).includes(s.name));
-                groupSubjects.sort((a, b) => b.grade - a.grade);
-                let groupCredits = 0;
-                groupSubjects.forEach(subject => {
-                    if (groupCredits + subject.credits <= group.cap) {
-                        groupCredits += subject.credits;
-                        totalScore += subject.grade * subject.credits * group.weight;
-                        maxScore += 100 * subject.credits * group.weight;
-                        breakdown.push({ text: `${subject.name} (${group.name})`, status: 'included'});
-                        includedNames.add(subject.name);
-                    }
-                });
-                totalCredits += groupCredits;
-            });
-            remainingSubjects = subjects.filter(s => !includedNames.has(s.name));
-            remainingSubjects.forEach(s => s.efficiency = s.grade * rule.otherWeight);
-            remainingSubjects.sort((a, b) => b.efficiency - a.efficiency);
-            for (const subject of remainingSubjects) {
-                if (totalCredits + subject.credits <= rule.totalCap) {
-                    totalCredits += subject.credits;
-                    totalScore += subject.grade * subject.credits * rule.otherWeight;
-                    maxScore += 100 * subject.credits * rule.otherWeight;
-                    breakdown.push({ text: `${subject.name} (その他)`, status: 'included' });
-                }
-            }
-            return { score: totalScore, credits: totalCredits, breakdown, maxScore };
-        }
         
         async function renderResultCard(majorName, result, rule) {
             const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
@@ -142,7 +107,7 @@
             card.className = `result-card`;
             card.style.borderTopColor = `var(--grade-${judgment}-color)`;
             const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
-            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => `<li class="status-included">${item.text}</li>`).join('') + '</ul>' : '<p>計算対象なし</p>';
+            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
             card.innerHTML = `
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
