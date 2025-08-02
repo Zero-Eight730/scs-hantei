@@ -30,20 +30,16 @@
             <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
         </div>
     </div>
-
     <datalist id="master-subjects-list"></datalist>
-
     <script>
         let currentUser = null;
         let masterSubjects = [];
         let majorRules = [];
-
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
         const addMajorBtn = document.getElementById('add-major-btn');
         const masterSubjectsDatalist = document.getElementById('master-subjects-list');
-
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
@@ -53,17 +49,21 @@
                 return null;
             }
             const user = session.user;
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            document.querySelectorAll('a[href="rules.html"]').forEach(link => {
-                if (!isAdmin) { link.style.display = 'none'; }
+            if (!isAdmin) {
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return null;
+            }
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
             });
             return { user, isAdmin };
         }
-
         async function initializeApp() {
             try {
                 const response = await fetch('kdb_2025.csv');
@@ -89,7 +89,6 @@
             } catch (error) { alert('科目マスターリストの読み込みに失敗しました。'); }
             await loadMajorRules();
         }
-
         async function loadMajorRules() {
             try {
                 const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, rule_data');
@@ -98,7 +97,6 @@
                 renderAllRules();
             } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
-
         function renderAllRules() {
             customMajorsContainer.innerHTML = '';
             majorRules.forEach((rule, index) => {
@@ -107,7 +105,6 @@
                 customMajorsContainer.appendChild(ruleEl);
             });
         }
-
         function createRuleElement(rule, majorIndex, isOwner) {
             const majorDiv = document.createElement('div');
             majorDiv.className = 'rule-editor';
@@ -133,7 +130,6 @@
             `;
             return majorDiv;
         }
-        
         function createGroupHTML(group, isOwner) {
             let subjectsHTML = '';
             (group.subjects || []).forEach(subjectName => {
@@ -159,7 +155,6 @@
                 </div>
             `;
         }
-
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
             if(sessionInfo){
@@ -167,26 +162,19 @@
                 await initializeApp();
             }
         });
-        
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
-
         addMajorBtn.addEventListener('click', () => {
             const newRule = { name: '', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0 };
             majorRules.push(newRule);
             renderAllRules();
         });
-
         customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-
             if (target.classList.contains('remove-major-btn')) {
-                const ruleId = target.dataset.id;
-                if (!ruleId) { // 新規追加された保存前のルールの場合
-                    ruleEditor.remove();
-                    return;
-                }
+                const ruleId = ruleEditor.dataset.majorId;
+                if (ruleId.startsWith('new-')) { ruleEditor.remove(); return; }
                 const ruleName = ruleEditor.querySelector('.major-name').value;
                 if (confirm(`「${ruleName}」を完全に削除しますか？この操作は元に戻せません。`)) {
                     const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
@@ -229,7 +217,6 @@
                     }
                 };
                 if (!ruleData.name) { alert('学類名は必須です。'); return; }
-
                 let query;
                 if (ruleId) {
                     query = supabaseClient.from('major_rules').update(ruleData).eq('id', ruleId);
