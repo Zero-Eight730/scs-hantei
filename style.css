@@ -208,91 +208,84 @@ tr:nth-child(even) {
 .result-item:last-child { border-bottom: none; }
 
 #results-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 380pxから300pxに縮小 */
-    gap: 25px;
-    margin-top: 30px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-top: 20px;
 }
-
 .result-card {
     background-color: var(--white);
+    border-left: 5px solid;
     padding: 20px;
-    border-radius: 12px;
-    border-top: 5px solid;
+    border-radius: 8px;
     box-shadow: var(--shadow);
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-        "header header"
-        "judgment details"
-        "breakdown breakdown";
-    gap: 10px 20px;
-    align-items: center;
 }
-.card-header { grid-area: header; }
-.card-header h4 { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); text-align: left;}
+.result-card h4 {
+    margin-top: 0;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+}
 
 /* --- ▼▼▼ ここからが修正箇所です ▼▼▼ --- */
-.judgment-display {
-    grid-area: judgment;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.judgment-circle {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.result-card .judgment {
     font-size: 4.5em; /* 文字を大きく */
-    font-weight: 700;
-    color: var(--white);
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+    font-weight: 700; /* 太字を強調 */
+    text-align: center;
+    margin: 20px 0;
+    line-height: 1; /* 行の高さを調整 */
 }
-.details-display {
-    grid-area: details;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-}
-.detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 5px 0;
-    border-bottom: 1px solid var(--border-color);
-}
-.detail-item:last-child {
-    border-bottom: none;
-}
-.detail-item .label { font-size: 0.9em; color: #666; }
-.detail-item .value { font-size: 1.2em; font-weight: 500; color: var(--text-dark); }
+/* --- ▲▲▲ ここまでが修正箇所です ▲▲▲ --- */
 
-.rank-info { font-size: 0.9em; color: var(--text-muted); }
-.breakdown-display { grid-area: breakdown; }
+.judgment-A { color: var(--danger-color); }
+.judgment-B { color: var(--warning-color); }
+.judgment-C { color: var(--success-color); }
+.judgment-D { color: var(--secondary-color); }
+.judgment-E { color: #6c757d; }
 
-.grade-A { background: var(--danger-color); }
-.grade-B { background: var(--warning-color); }
-.grade-C { background: var(--success-color); }
-.grade-D { background: var(--secondary-color); }
-.grade-E { background: var(--grade-e-color); }
-/* --- ▲▲▲ ここまで ▲▲▲ --- */
+.result-card .score-details { text-align: center; margin-bottom: 10px; }
+.result-card .score { font-size: 1.5em; font-weight: bold; color: var(--primary-color); }
+.result-card .percentage { font-size: 1.1em; color: var(--danger-color); }
+.result-card .credits-info { text-align: center; font-size: 0.9em; color: #666; margin-top: 5px; }
 
-.result-card ul { list-style-type: none; padding-left: 0; font-family: monospace; }
+.result-card ul {
+    list-style-type: none;
+    padding-left: 0;
+    font-family: monospace;
+}
 .result-card li {
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-bottom: 4px;
-    font-size: 0.85em;
-    word-break: break-word; /* 長い単語を改行させる */
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 0.85em;
 }
-.status-included { background-color: #d4edda; border-left: 3px solid #155724; }
-.status-excluded { background-color: #f8d7da; color: #721c24; border-left: 3px solid #721c24; opacity: 0.8; }
+.status-included {
+    background-color: #d4edda;
+    border-left: 3px solid #155724;
+}
+.status-excluded {
+    background-color: #f8d7da;
+    color: #721c24;
+    border-left: 3px solid #721c24;
+    opacity: 0.8;
+}
+
+.result-card .rank-info {
+    text-align: center;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed var(--border-color);
+}
+.result-card .rank-info .rank-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+.result-card .rank-info .deviation-value {
+    font-size: 1.2em;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
 
 .account-section { padding: 20px; margin-top: 20px; border: 1px solid var(--border-color); border-radius: 8px; }
 .account-section h3 { text-align: left; margin-top: 0; border-bottom: none; }
@@ -314,8 +307,10 @@ tr:nth-child(even) {
 .major-selection-grid input { display: none; }
 .major-selection-grid input:checked + label { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-.admin-only { display: none; }
-/* --- ▼▼▼ スマートフォン向けスタイル（レスポンシブ対応） ▼▼▼ --- */
+.admin-only {
+    display: none;
+}
+
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
@@ -324,66 +319,11 @@ tr:nth-child(even) {
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
     
-    .result-card {
-        grid-template-columns: 1fr;
-        grid-template-areas: "header" "judgment" "details" "breakdown";
-        text-align: center;
-    }
-    .card-header h4 { text-align: center; }
-    .judgment-display {
-        /* スマホ表示時の中央揃えを維持 */
-        justify-content: center;
-    }
-    .judgment-circle {
-        width: 80px; /* スマホ向けに円を少し小さく */
-        height: 80px;
-        font-size: 3.5em; /* 文字サイズを調整 */
-    }
-    .details-display {
-        /* スマホ向けに横幅を調整 */
-        width: 100%;
-        max-width: 300px;
-        margin: 0 auto;
-    }
-    .result-card ul {
-        padding-left: 0;
-    }
-    .result-card li {
-        text-align: left; /* リスト項目は左揃えに戻す */
-    }
-}
+    .result-card .judgment { font-size: 3.5em; }
+    .result-card .score { font-size: 1.2em; }
+    .result-card ul { column-count: 1; }
     
     td, th { font-size: 0.9em; padding: 8px; }
-    
-    /* 成績入力テーブルのレイアウトをスマホ用に変更 */
-    #subjects-table thead {
-        display: none;
-    }
-    #subjects-table tr {
-        display: block;
-        border: 1px solid var(--border-color);
-        border-radius: 5px;
-        margin-bottom: 15px;
-        padding: 10px;
-    }
-    #subjects-table td {
-        display: block;
-        border: none;
-        padding: 5px 0;
-        text-align: left !important;
-    }
-    #subjects-table td:before {
-        content: attr(data-label);
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
-        color: var(--primary-color);
-    }
-    .subject-row-bottom {
-        display: grid;
-        grid-template-columns: 1fr 1fr 80px;
-        gap: 10px;
-        align-items: center;
-    }
-    .subject-credits, .subject-grade { width: 100%; }
+    #subjects-table { table-layout: auto; } 
+    #subjects-table .col-credits, #subjects-table .col-grade { min-width: 70px; }
 }
