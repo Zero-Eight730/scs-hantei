@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ランキング設定 - 成績計算サイト</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+</head>
+<body>
+    <div id="main-app" class="container" style="display:none;">
+        <nav>
+            <a href="input.html">成績入力</a>
+            <a href="view.html">成績参照</a>
+            <a href="judge.html">判定実行</a>
+            <a href="majors.html">志望学類登録</a>
+            <a href="rules.html" class="admin-only">ルール設定</a>
+            <strong>ランキング設定</strong>
+            <a href="account.html">アカウント管理</a>
+        </nav>
+        <div class="user-status">
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
+        </div>
+        <div class="panel">
+            <h2>ランキング公開設定</h2>
+            <p style="text-align:center;">判定ページでの順位と偏差値の表示を制御します。</p>
+
+            <div class="account-section">
+                <h3>公開ステータス</h3>
+                <label style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="ranking-enabled-checkbox" style="width: 20px; height: 20px;">
+                    <span>ランキングと偏差値を公開する</span>
+                </label>
+            </div>
+
+            <div class="account-section">
+                <h3>公開期間（任意）</h3>
+                <div class="rule-settings-grid">
+                    <div>
+                        <label for="start-time">公開開始日時</label>
+                        <input type="datetime-local" id="start-time">
+                    </div>
+                    <div>
+                        <label for="end-time">公開終了日時</label>
+                        <input type="datetime-local" id="end-time">
+                    </div>
+                </div>
+                 <p style="font-size:0.8em; color:#666;">※期間を指定しない場合、上のチェックボックスがONである限り常に公開されます。</p>
+            </div>
+            
+            <button id="save-settings-btn" class="btn-main" style="width: 100%; margin-top: 20px;">設定を保存</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const rankingEnabledCheckbox = document.getElementById('ranking-enabled-checkbox');
+        const startTimeInput = document.getElementById('start-time');
+        const endTimeInput = document.getElementById('end-time');
+        const saveSettingsBtn = document.getElementById('save-settings-btn');
+        
+        async function setupUserInterface() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = 'index.html'; return null; }
+            
+            const user = session.user;
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
+            const isAdmin = profile && profile.role === 'admin';
+            
+            if (!isAdmin) {
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return null;
+            }
+
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if(isAdmin) link.style.display = 'inline-block';
+            });
+            
+            return { user, isAdmin };
+        }
+
+        async function loadSettings() {
+            try {
+                const { data, error } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
+                if (error) throw error;
+                
+                if (data && data.settings) {
+                    const settings = data.settings;
+                    rankingEnabledCheckbox.checked = settings.ranking_enabled || false;
+                    startTimeInput.value = settings.ranking_start_time ? settings.ranking_start_time.slice(0, 16) : '';
+                    endTimeInput.value = settings.ranking_end_time ? settings.ranking_end_time.slice(0, 16) : '';
+                }
+            } catch (e) {
+                console.error("設定の読み込みに失敗:", e);
+                alert("設定の読み込みに失敗しました。");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sessionInfo = await setupUserInterface();
+            if(sessionInfo){
+                currentUser = sessionInfo.user;
+                await loadSettings();
+            }
+        });
+        
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
+
+        saveSettingsBtn.addEventListener('click', async () => {
+            const settings = {
+                ranking_enabled: rankingEnabledCheckbox.checked,
+                ranking_start_time: startTimeInput.value ? new Date(startTimeInput.value).toISOString() : null,
+                ranking_end_time: endTimeInput.value ? new Date(endTimeInput.value).toISOString() : null
+            };
+
+            const { data, error } = await supabaseClient.from('app_settings')
+                .update({ settings: settings })
+                .eq('id', 1);
+
+            if (error) {
+                alert('設定の保存に失敗しました: ' + error.message);
+            } else {
+                alert('設定を保存しました。');
+            }
+        });
+    </script>
+</body>
+</html>
