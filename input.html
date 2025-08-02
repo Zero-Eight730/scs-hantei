@@ -59,10 +59,13 @@
         const addRowBtn = document.getElementById('add-row-btn');
         const saveBtn = document.getElementById('save-btn');
         const loadingStatus = document.getElementById('loading-status');
-        
+
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'index.html'; return; }
+            if (error || !session) {
+                window.location.href = 'index.html';
+                return;
+            }
             currentUser = session.user;
             document.getElementById('main-app').style.display = 'block';
             userDisplay.textContent = `${currentUser.email} でログイン中`;
@@ -85,7 +88,9 @@
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
-                                if (!uniqueSubjects.has(key)) { uniqueSubjects.set(key, { name, credits }); }
+                                if (!uniqueSubjects.has(key)) {
+                                    uniqueSubjects.set(key, { name, credits });
+                                }
                             }
                         });
                         masterSubjects = Array.from(uniqueSubjects.values());
@@ -95,7 +100,9 @@
                 searchInput.disabled = false;
                 searchInput.placeholder = '科目ライブラリから検索...';
                 setTimeout(() => { loadingStatus.textContent = ''; }, 3000);
-            } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
+            } catch (error) {
+                loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`;
+            }
             await loadSubjects();
         }
 
@@ -114,7 +121,9 @@
             subjectsTableBody.innerHTML = '';
             if (subjects && subjects.length > 0) {
                 subjects.forEach(createSubjectRow);
-            } else { createSubjectRow(); }
+            } else {
+                createSubjectRow();
+            }
         }
 
         async function loadSubjects() {
@@ -122,18 +131,24 @@
                 const { data, error } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
                 if (error && error.code !== 'PGRST116') throw error;
                 populateTable(data ? data.subjects : []);
-            } catch (e) { populateTable([]); }
+            } catch (e) {
+                populateTable([]);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
         addRowBtn.addEventListener('click', () => createSubjectRow());
         subjectsTableBody.addEventListener('click', (e) => {
-            if (e.target.classList.contains('btn-remove')) { e.target.closest('tr').remove(); }
+            if (e.target.classList.contains('btn-remove')) {
+                e.target.closest('tr').remove();
+            }
         });
+
         logoutBtn.addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             window.location.href = 'index.html';
         });
+
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.toLowerCase();
             searchResultsContainer.innerHTML = '';
@@ -156,11 +171,15 @@
                 searchResultsContainer.appendChild(moreResults);
             }
         });
+
         searchResultsContainer.addEventListener('click', (event) => {
             if (event.target.classList.contains('btn-add')) {
                 const { name, credits } = event.target.dataset;
                 const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
-                if (currentSubjects.includes(name)) { alert('この科目は既に追加されています。'); return; }
+                if (currentSubjects.includes(name)) {
+                    alert('この科目は既に追加されています。');
+                    return;
+                }
                 createSubjectRow({ name, credits: parseFloat(credits) });
                 searchInput.value = '';
                 searchResultsContainer.innerHTML = '';
@@ -206,7 +225,7 @@
                 allRules.forEach(rule => {
                     const result = calculateCustomMajor(subjectsForCalc, rule);
                     scoresToUpsert.push({
-                        id: currentUser.id, // ★ ここを user_id から id に修正
+                        id: currentUser.id, // ★ ここが重要：列名は 'id'
                         major: rule.name,
                         score: result.score
                     });
