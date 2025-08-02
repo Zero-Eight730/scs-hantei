@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="supabase-client.js"></script>
-    <script src="common.js"></script>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
@@ -59,14 +58,31 @@
         const addRowBtn = document.getElementById('add-row-btn');
         const saveBtn = document.getElementById('save-btn');
         const loadingStatus = document.getElementById('loading-status');
-        async function checkSessionAndInitialize() {
+
+        async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'index.html'; return; }
-            currentUser = session.user;
-            document.getElementById('main-app').style.display = 'block';
-            userDisplay.textContent = `${currentUser.email} でログイン中`;
-            await initializeApp();
+            if (error || !session) {
+                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
+                    window.location.href = 'index.html';
+                }
+                return null;
+            }
+            const user = session.user;
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
+
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
+            const isAdmin = profile && profile.role === 'admin';
+
+            document.querySelectorAll('a[href="rules.html"]').forEach(link => {
+                if (!isAdmin) {
+                    link.style.display = 'none';
+                }
+            });
+            return { user, isAdmin };
         }
+
         async function initializeApp() {
             loadingStatus.textContent = '科目データを読み込み中...';
             searchInput.disabled = true;
@@ -79,7 +95,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['科目名'] ? row['科目名'].trim() : '';
+                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
@@ -96,6 +112,7 @@
             } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
             await loadSubjects();
         }
+
         function createSubjectRow(subject = {}) {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -106,12 +123,14 @@
             `;
             subjectsTableBody.appendChild(row);
         }
+
         function populateTable(subjects) {
             subjectsTableBody.innerHTML = '';
             if (subjects && subjects.length > 0) {
                 subjects.forEach(createSubjectRow);
             } else { createSubjectRow(); }
         }
+
         async function loadSubjects() {
              try {
                 const { data, error } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
@@ -119,15 +138,26 @@
                 populateTable(data ? data.subjects : []);
             } catch (e) { populateTable([]); }
         }
-        document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sessionInfo = await setupUserInterface();
+            if (sessionInfo) {
+                currentUser = sessionInfo.user;
+                await initializeApp();
+            }
+        });
+
         addRowBtn.addEventListener('click', () => createSubjectRow());
+
         subjectsTableBody.addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-remove')) { e.target.closest('tr').remove(); }
         });
+
         logoutBtn.addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             window.location.href = 'index.html';
         });
+
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.toLowerCase();
             searchResultsContainer.innerHTML = '';
@@ -150,6 +180,7 @@
                 searchResultsContainer.appendChild(moreResults);
             }
         });
+
         searchResultsContainer.addEventListener('click', (event) => {
             if (event.target.classList.contains('btn-add')) {
                 const { name, credits } = event.target.dataset;
@@ -160,47 +191,30 @@
                 searchResultsContainer.innerHTML = '';
             }
         });
+
         saveBtn.addEventListener('click', async () => {
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中...';
-            const subjectsRaw = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
+            const subjects = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
                 name: row.querySelector('.subject-name').value.trim(),
                 credits: row.querySelector('.subject-credits').value,
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
-            const subjectsForCalc = subjectsRaw.map(s => ({
-                name: s.name,
-                credits: parseFloat(s.credits),
-                grade: parseFloat(s.grade)
-            })).filter(s => !isNaN(s.credits) && !isNaN(s.grade));
             try {
-                const { data: existingData } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
-                const { error: subjectSaveError } = await supabaseClient.from('user_data').upsert({ 
+                const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
+                if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+                const updatedData = { 
                     id: currentUser.id, 
-                    subjects: subjectsRaw, 
+                    subjects: subjects, 
                     custom_rules: existingData ? existingData.custom_rules : [],
                     target_majors: existingData ? existingData.target_majors : [],
                     updated_at: new Date() 
-                });
-                if (subjectSaveError) throw subjectSaveError;
-                const { data: rulesData } = await supabaseClient.from('major_rules').select('name, rule_data');
-                const allRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
-                const scoresToUpsert = [];
-                allRules.forEach(rule => {
-                    const result = calculateCustomMajor(subjectsForCalc, rule);
-                    scoresToUpsert.push({
-                        id: currentUser.id,
-                        major: rule.name,
-                        score: result.score
-                    });
-                });
-                if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
-                    if (scoreSaveError) throw scoreSaveError;
-                }
-                alert('成績リストと計算済みスコアを保存しました。');
-            } catch(error) {
-                alert('保存に失敗しました: ' + error.message);
+                };
+                const { error } = await supabaseClient.from('user_data').upsert(updatedData);
+                if (error) throw error;
+                alert('保存しました。');
+            } catch (e) { 
+                alert('保存に失敗しました: ' + e.message); 
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = '現在のリストをサーバーに保存';
