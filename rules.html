@@ -44,24 +44,30 @@
         const addMajorBtn = document.getElementById('add-major-btn');
         const masterSubjectsDatalist = document.getElementById('master-subjects-list');
 
-        async function setupUserInterface() {
+        async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
-                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
-                    window.location.href = 'index.html';
-                }
-                return null;
+                window.location.href = 'index.html';
+                return;
             }
-            const user = session.user;
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
-            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
-            const isAdmin = profile && profile.role === 'admin';
-            document.querySelectorAll('a[href="rules.html"]').forEach(link => {
-                if (!isAdmin) { link.style.display = 'none'; }
-            });
-            return { user, isAdmin };
+            currentUser = session.user;
+            
+            // ▼▼▼ ここからが修正箇所です ▼▼▼
+            // ユーザーの権限（ロール）を取得
+            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+
+            if (profileError || !profile || profile.role !== 'admin') {
+                // 管理者でない場合は、警告を表示して入力ページにリダイレクト
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return;
+            }
+            // ▲▲▲ ここまでが修正箇所です ▲▲▲
+
+            // 管理者のみ、ページの表示と初期化を続行
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${currentUser.email} でログイン中 [管理者]`;
+            await initializeApp();
         }
 
         async function initializeApp() {
@@ -119,7 +125,7 @@
             majorDiv.innerHTML = `
                 <div class="rule-editor-header">
                     <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" ${!isOwner && rule.id ? 'disabled' : ''} style="font-size: 1.2em; font-weight: bold;">
-                    ${isOwner ? `<button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>` : ''}
+                    <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>
                 </div>
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限" ${!isOwner && rule.id ? 'disabled' : ''}>
@@ -128,8 +134,8 @@
                     <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)" ${!isOwner && rule.id ? 'disabled' : ''}>
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
-                ${isOwner || !rule.id ? '<button class="btn-add add-group-btn">科目グループを追加</button>' : ''}
-                ${isOwner || !rule.id ? `<button class="btn-main save-one-rule-btn" data-id="${rule.id || ''}" style="width:100%; margin-top:10px;">このルールを保存</button>` : ''}
+                <button class="btn-add add-group-btn">科目グループを追加</button>
+                <button class="btn-main save-one-rule-btn" data-id="${rule.id || ''}" style="width:100%; margin-top:10px;">このルールを保存</button>
             `;
             return majorDiv;
         }
@@ -150,24 +156,16 @@
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
-                    ${isOwner ? `
                     <div class="subject-add-area">
                         <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
                         <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                    </div>` : ''}
-                    ${isOwner ? '<button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>' : ''}
+                    </div>
+                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
                 </div>
             `;
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const sessionInfo = await setupUserInterface();
-            if(sessionInfo){
-                currentUser = sessionInfo.user;
-                await initializeApp();
-            }
-        });
-
+        document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
