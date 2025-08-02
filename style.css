@@ -208,11 +208,12 @@ tr:nth-child(even) {
 .result-item:last-child { border-bottom: none; }
 
 #results-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-    gap: 25px;
-    margin-top: 30px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 380pxから300pxに縮小 */
+    gap: 25px;
+    margin-top: 30px;
 }
+
 .result-card {
     background-color: var(--white);
     padding: 20px;
@@ -283,7 +284,13 @@ tr:nth-child(even) {
 /* --- ▲▲▲ ここまで ▲▲▲ --- */
 
 .result-card ul { list-style-type: none; padding-left: 0; font-family: monospace; }
-.result-card li { padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.85em;}
+.result-card li {
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 0.85em;
+    word-break: break-word; /* 長い単語を改行させる */
+}
 .status-included { background-color: #d4edda; border-left: 3px solid #155724; }
 .status-excluded { background-color: #f8d7da; color: #721c24; border-left: 3px solid #721c24; opacity: 0.8; }
 
@@ -317,15 +324,34 @@ tr:nth-child(even) {
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
     
-    .result-card {
-        grid-template-columns: 1fr;
-        grid-template-areas: "header" "judgment" "details" "breakdown";
-        text-align: center;
-    }
-    .card-header h4 { text-align: center; }
-    .result-card .judgment { font-size: 3.5em; }
-    .result-card .score { font-size: 1.2em; }
-    .result-card ul { column-count: 1; }
+    .result-card {
+        grid-template-columns: 1fr;
+        grid-template-areas: "header" "judgment" "details" "breakdown";
+        text-align: center;
+    }
+    .card-header h4 { text-align: center; }
+    .judgment-display {
+        /* スマホ表示時の中央揃えを維持 */
+        justify-content: center;
+    }
+    .judgment-circle {
+        width: 80px; /* スマホ向けに円を少し小さく */
+        height: 80px;
+        font-size: 3.5em; /* 文字サイズを調整 */
+    }
+    .details-display {
+        /* スマホ向けに横幅を調整 */
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+    }
+    .result-card ul {
+        padding-left: 0;
+    }
+    .result-card li {
+        text-align: left; /* リスト項目は左揃えに戻す */
+    }
+}
     
     td, th { font-size: 0.9em; padding: 8px; }
     
