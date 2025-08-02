@@ -187,12 +187,8 @@
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 ${judgmentHTML}
                 <div class="details-display">
-                    ${isPublic ? 
-                        `<div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
-                         <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>` :
-                        `<div class="detail-item"><span class="label">移行点</span><span class="value">非公開</span></div>
-                         <div class="detail-item"><span class="label">得点率</span><span class="value">非公開</span></div>`
-                    }
+                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
                     <div class="rank-info" id="rank-${safeMajorName}">${rankInfoHTML}</div>
                 </div>
                 <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
