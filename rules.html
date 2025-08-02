@@ -78,7 +78,7 @@
                 Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
                     const uniqueSubjects = new Map();
                     results.data.forEach(row => {
-                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                        const name = row['科目名'] ? row['科目名'].trim() : '';
                         const credits = parseFloat(row['単位数']);
                         if(name && !isNaN(credits)) {
                             const key = `${name}|${credits}`;
@@ -135,7 +135,7 @@
             majorDiv.innerHTML = `
                 <div class="rule-editor-header">
                     <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
-                    <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>
+                    <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">削除</button>
                 </div>
                 <p style="font-size:0.8em; color:#666; text-align:right; margin:0;">作成者: ${rule.userId === currentUser.id ? 'あなた' : '他の管理者'}</p>
                 ${rolesHTML}
