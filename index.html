@@ -28,36 +28,22 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const authMessage = document.getElementById('auth-message');
-
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                window.location.href = 'input.html';
-            }
+            if (session) { window.location.href = 'input.html'; }
         });
-
         registerBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
             authMessage.textContent = '';
-
-            // ▼▼▼ emailRedirectTo を追加 ▼▼▼
             const { data, error } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
-                options: {
-                    emailRedirectTo: `${SITE_BASE_URL}/input.html`
-                }
+                options: { emailRedirectTo: `${SITE_BASE_URL}/input.html` }
             });
-            // ▲▲▲ ここまで ▲▲▲
-
-            if (error) {
-                authMessage.textContent = '登録エラー: ' + error.message;
-            } else {
-                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、再度ログインしてください。');
-            }
+            if (error) { authMessage.textContent = '登録エラー: ' + error.message; } 
+            else { alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、再度ログインしてください。'); }
         });
-
         loginBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
@@ -66,11 +52,8 @@
                 email: email,
                 password: password,
             });
-            if (error) {
-                authMessage.textContent = 'ログインエラー: ' + error.message;
-            } else {
-                window.location.href = 'input.html';
-            }
+            if (error) { authMessage.textContent = 'ログインエラー: ' + error.message; } 
+            else { window.location.href = 'input.html'; }
         });
     </script>
 </body>
