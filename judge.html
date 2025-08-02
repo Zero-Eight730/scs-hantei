@@ -154,7 +154,7 @@
             try {
                 const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
                 if (error) throw new Error(error.message);
-                if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
+                if (!data || data.length === 0) throw new Error('比較対象がいません');
                 const rankData = data[0];
                 document.getElementById(`rank-${safeMajorName}`).innerHTML = `
                     <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
