@@ -3,55 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ログイン - モギモギ判定</title>
+    <title>モギモギ判定</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-client.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            background-color: #f0f8ff;
+            color: #2c3e50;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #0077b6;
+        }
+        .login-btn {
+            padding: 8px 16px;
+            background-color: #0077b6;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .login-btn:hover {
+            background-color: #005f99;
+        }
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            background: linear-gradient(rgba(0, 119, 182, 0.8), rgba(0, 180, 216, 0.8)), url('https://picsum.photos/1200/800') no-repeat center center/cover;
+            color: #ffffff;
+        }
+        .hero h2 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .hero p {
+            font-size: 1.2em;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .content-section {
+            background-color: #ffffff;
+            padding: 40px;
+            margin: 20px auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+        .content-section h3 {
+            color: #0077b6;
+            border-bottom: 2px solid #00b4d8;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .feature-list li {
+            background-color: #f8f9fa;
+            border-left: 4px solid #00b4d8;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .important-dates {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 30px;
+        }
+        .important-dates h3 {
+            color: #856404;
+            border-bottom: none;
+        }
+        .important-dates strong {
+            color: #856404;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+    </style>
 </head>
 <body>
-    <div class="container auth-container">
-        <h1>筑波大学<br>総合学域群<br>モギモギ判定</h1>
-        <div class="panel">
-            <h2>ログイン</h2>
-            <input type="email" id="email" placeholder="メールアドレス" required>
-            <input type="password" id="password" placeholder="パスワード" required>
-            <div class="user-actions">
-                <button id="login-btn" class="btn-main" style="width:100%;">ログイン</button>
-            </div>
-            <p id="auth-message"></p>
-            <hr style="margin: 20px 0;">
-            <p style="text-align: center; color: #666;">
-                アカウントをお持ちでないですか？ <a href="register.html">新規登録</a>
-            </p>
-        </div>
+
+    <header>
+        <h1>移行判定シミュレーター</h1>
+        <a href="index.html" class="login-btn">ログイン</a>
+    </header>
+
+    <div class="hero">
+        <h2>筑波大学総合学域群 移行合格可能性を判定</h2>
+        <p>あなたの成績から、志望学類への移行の可能性をシミュレーション。合格最低点や中央値に基づいた客観的な指標で、あなたの現在地を確認しましょう。</p>
     </div>
-    <script>
-        const loginBtn = document.getElementById('login-btn');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const authMessage = document.getElementById('auth-message');
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                window.location.href = 'input.html';
-            }
-        });
+    <div class="container">
+        <div class="content-section">
+            <h3>サイトの目的</h3>
+            <p>このサイトは、筑波大学総合学域群の学生が、志望する学類への移行の可能性をシミュレーションするためのツールです。過去のデータに基づいた客観的な指標で、あなたの現在地を確認し、今後の学習計画に役立てることができます。</p>
+        </div>
 
-        loginBtn.addEventListener('click', async () => {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
-            authMessage.textContent = '';
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
-            if (error) {
-                authMessage.textContent = 'ログインエラー: ' + error.message;
-            } else {
-                window.location.href = 'input.html';
-            }
-        });
-    </script>
+        <div class="content-section">
+            <h3>主な機能</h3>
+            <ul class="feature-list">
+                <li><strong>成績の登録と計算</strong>: あなたが履修した春学期の科目の成績を入力するだけで、志望学類ごとの移行点を自動で計算します。</li>
+                <li><strong>順位・偏差値の確認</strong>: サイトに登録している他のユーザーの得点率を基に、あなたの現時点での**順位**と**偏差値**が分かります。</li>
+                <li><strong>合格可能性の判定</strong>: 昨年度の合格最低点と中央値を基準に、あなたの移行合格可能性をA〜Eの5段階で判定します。</li>
+            </ul>
+        </div>
+
+        <div class="content-section important-dates">
+            <h3>重要な日程</h3>
+            <p><strong>判定、順位、偏差値の発表日:</strong> <strong style="font-size: 1.2em;">8月30日</strong></p>
+            <p>この発表に向けて、**春Cの成績は8月30日までに必ず入力を済ませてください。**</p>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>&copy; 2025 モギモギ判定. All Rights Reserved.</p>
+    </footer>
+
 </body>
 </html>
