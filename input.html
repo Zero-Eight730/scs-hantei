@@ -90,7 +90,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                            const name = row['科目名'] ? row['科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
@@ -115,6 +115,19 @@
                 <td><input type="number" class="subject-grade" min="0" max="100" value="${subject.grade || ''}" placeholder="例：95"></td>
                 <td><button class="btn-remove">削除</button></td>
             `;
+                        // スマホ用に下段をまとめるdivを作成
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'subject-row-bottom';
+            const creditsTd = row.querySelector('td:nth-child(2)');
+            const gradeTd = row.querySelector('td:nth-child(3)');
+            const actionsTd = row.querySelector('td:nth-child(4)');
+            bottomRow.appendChild(creditsTd);
+            bottomRow.appendChild(gradeTd);
+            bottomRow.appendChild(actionsTd);
+            
+            // 科目名の下に挿入
+            row.querySelector('td:first-child').appendChild(bottomRow);
+
             subjectsTableBody.appendChild(row);
         }
         function populateTable(subjects) {
