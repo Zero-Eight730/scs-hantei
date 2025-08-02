@@ -232,6 +232,7 @@
                 });
                 
                 if (scoresToUpsert.length > 0) {
+                    // ★ onConflictも 'id, major' に修正
                     const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
