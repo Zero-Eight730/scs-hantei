@@ -79,7 +79,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                            const name = row['科目名'] ? row['科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
@@ -160,27 +160,21 @@
                 searchResultsContainer.innerHTML = '';
             }
         });
-
         saveBtn.addEventListener('click', async () => {
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中...';
-
             const subjectsRaw = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
                 name: row.querySelector('.subject-name').value.trim(),
                 credits: row.querySelector('.subject-credits').value,
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
-            
             const subjectsForCalc = subjectsRaw.map(s => ({
                 name: s.name,
                 credits: parseFloat(s.credits),
                 grade: parseFloat(s.grade)
             })).filter(s => !isNaN(s.credits) && !isNaN(s.grade));
-
             try {
-                const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
-                if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
-
+                const { data: existingData } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
                 const { error: subjectSaveError } = await supabaseClient.from('user_data').upsert({ 
                     id: currentUser.id, 
                     subjects: subjectsRaw, 
@@ -189,28 +183,21 @@
                     updated_at: new Date() 
                 });
                 if (subjectSaveError) throw subjectSaveError;
-
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
-                if (rulesError) throw rulesError;
-
+                const { data: rulesData } = await supabaseClient.from('major_rules').select('name, rule_data');
                 const allRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
                 const scoresToUpsert = [];
-
                 allRules.forEach(rule => {
                     const result = calculateCustomMajor(subjectsForCalc, rule);
-                    // ★★★ ここが最終修正箇所です ★★★
                     scoresToUpsert.push({
-                        id: currentUser.id, // データベースの列名と一致
+                        id: currentUser.id,
                         major: rule.name,
                         score: result.score
                     });
                 });
-                
                 if (scoresToUpsert.length > 0) {
                     const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
                     if (scoreSaveError) throw scoreSaveError;
                 }
-
                 alert('成績リストと計算済みスコアを保存しました。');
             } catch(error) {
                 alert('保存に失敗しました: ' + error.message);
