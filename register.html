@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規登録 - 成績計算サイト</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+</head>
+<body>
+    <div class="container auth-container">
+        <h1>成績計算サイト</h1>
+        <div class="panel">
+            <h2>新規登録</h2>
+            <input type="email" id="email" placeholder="メールアドレス" required>
+            <input type="password" id="password" placeholder="パスワード（6文字以上）" required>
+            <div class="user-actions">
+                <button id="register-btn" class="btn-action" style="width:100%;">登録する</button>
+            </div>
+            <p id="auth-message"></p>
+            <hr style="margin: 20px 0;">
+            <p style="text-align: center; color: #666;">
+                すでにアカウントをお持ちですか？ <a href="index.html">ログイン</a>
+            </p>
+        </div>
+    </div>
+    <script>
+        const registerBtn = document.getElementById('register-btn');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const authMessage = document.getElementById('auth-message');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = 'input.html';
+            }
+        });
+
+        registerBtn.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+            authMessage.textContent = '';
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: { emailRedirectTo: `${SITE_BASE_URL}/input.html` }
+            });
+            if (error) {
+                authMessage.textContent = '登録エラー: ' + error.message;
+            } else {
+                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、ログインページからログインしてください。');
+                window.location.href = 'index.html';
+            }
+        });
+    </script>
+</body>
+</html>
