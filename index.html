@@ -30,10 +30,14 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const authMessage = document.getElementById('auth-message');
+
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) { window.location.href = 'input.html'; }
+            if (session) {
+                window.location.href = 'input.html';
+            }
         });
+
         loginBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
@@ -42,8 +46,11 @@
                 email: email,
                 password: password,
             });
-            if (error) { authMessage.textContent = 'ログインエラー: ' + error.message; } 
-            else { window.location.href = 'input.html'; }
+            if (error) {
+                authMessage.textContent = 'ログインエラー: ' + error.message;
+            } else {
+                window.location.href = 'input.html';
+            }
         });
     </script>
 </body>
