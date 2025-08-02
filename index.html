@@ -40,10 +40,17 @@
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
             authMessage.textContent = '';
+
+            // ▼▼▼ emailRedirectTo を追加 ▼▼▼
             const { data, error } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
+                options: {
+                    emailRedirectTo: `${SITE_BASE_URL}/input.html`
+                }
             });
+            // ▲▲▲ ここまで ▲▲▲
+
             if (error) {
                 authMessage.textContent = '登録エラー: ' + error.message;
             } else {
