@@ -30,14 +30,11 @@
             <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
         </div>
     </div>
-
     <datalist id="master-subjects-list"></datalist>
-
     <script>
         let currentUser = null;
         let masterSubjects = [];
         let majorRules = [];
-
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
@@ -165,7 +162,7 @@
 
             if (target.classList.contains('remove-major-btn')) {
                 const ruleId = target.dataset.id;
-                if (!ruleId) { ruleEditor.remove(); return; }
+                if (!ruleId || ruleId === 'undefined' || ruleId === '') { ruleEditor.remove(); return; }
                 const ruleName = ruleEditor.querySelector('.major-name').value;
                 if (confirm(`「${ruleName}」を完全に削除しますか？この操作は元に戻せません。`)) {
                     const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
@@ -191,7 +188,7 @@
                     input.value = '';
                 }
             } else if (target.classList.contains('save-one-rule-btn')) {
-                const ruleId = target.dataset.id; // 新規の場合は "" (空文字列)
+                const ruleId = target.dataset.id;
                 const ruleData = {
                     name: ruleEditor.querySelector('.major-name').value.trim(),
                     rule_data: {
@@ -210,16 +207,11 @@
                 if (!ruleData.name) { alert('学類名は必須です。'); return; }
 
                 let query;
-                // ▼▼▼ ここからが修正箇所です ▼▼▼
-                if (ruleId && ruleId !== 'undefined' && ruleId !== '') {
-                    // 既存ルールの更新
+                if (ruleId) {
                     query = supabaseClient.from('major_rules').update(ruleData).eq('id', ruleId);
                 } else {
-                    // 新規ルールの挿入
                     query = supabaseClient.from('major_rules').insert({ ...ruleData, user_id: currentUser.id });
                 }
-                // ▲▲▲ ここまでが修正箇所です ▲▲▲
-
                 const { error } = await query;
                 if (error) { alert('保存に失敗: ' + error.message); }
                 else { alert(`「${ruleData.name}」を保存しました。`); await loadMajorRules(); }
