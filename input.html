@@ -57,7 +57,8 @@
         const loadingStatus = document.getElementById('loading-status');
 
         async function checkSessionAndInitialize() {
-            const { data: { session }, error } = await supabase.auth.getSession();
+            // supabase → supabaseClient に修正
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
                 window.location.href = '/login.html';
                 return;
@@ -99,7 +100,7 @@
             } catch (error) {
                 loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`;
             }
-            loadSubjects();
+            await loadSubjects();
         }
 
         function createSubjectRow(subject = {}) {
@@ -124,12 +125,13 @@
 
         async function loadSubjects() {
              try {
-                const { data, error } = await supabase
+                // supabase → supabaseClient に修正
+                const { data, error } = await supabaseClient
                     .from('user_data')
                     .select('subjects')
                     .eq('id', currentUser.id)
                     .single();
-                if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "No rows found"
+                if (error && error.code !== 'PGRST116') throw error;
                 populateTable(data ? data.subjects : []);
             } catch (e) {
                 populateTable([]);
@@ -143,7 +145,8 @@
         });
 
         logoutBtn.addEventListener('click', async () => {
-            await supabase.auth.signOut();
+            // supabase → supabaseClient に修正
+            await supabaseClient.auth.signOut();
             window.location.href = '/login.html';
         });
 
@@ -180,7 +183,7 @@
                 searchResultsContainer.innerHTML = '';
             }
         });
-
+        
         saveBtn.addEventListener('click', async () => {
             const subjects = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
                 name: row.querySelector('.subject-name').value.trim(),
@@ -188,7 +191,8 @@
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
             
-            const { data, error } = await supabase
+            // supabase → supabaseClient に修正
+            const { data, error } = await supabaseClient
                 .from('user_data')
                 .upsert({ id: currentUser.id, subjects: subjects });
 
