@@ -30,7 +30,9 @@
         const authMessage = document.getElementById('auth-message');
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) { window.location.href = 'input.html'; }
+            if (session) {
+                window.location.href = 'input.html';
+            }
         });
         registerBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
