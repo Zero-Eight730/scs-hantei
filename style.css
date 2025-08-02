@@ -333,10 +333,6 @@ tr:nth-child(even) {
         font-size: 3em;
     }
     .result-card ul { column-count: 1; }
-    td, th { font-size: 0.9em; padding: 8px; }
-    #subjects-table { table-layout: auto; }
-    .subject-credits, .subject-grade { width: 100%; min-width: 70px; }
-    .panel h2 { margin: 0; padding-bottom: 1rem; }
     
     /* 成績入力ページのテーブルを2段レイアウトにする修正 */
     #subjects-table thead {
