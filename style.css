@@ -12,7 +12,7 @@
     --text-light: #f8f9fa;
     --border-color: #dee2e6;
     --shadow: 0 4px 12px rgba(0,0,0,0.08);
-    --grade-e-color: #6c757d; /* 判定Eのカラーを追加 */
+    --grade-e-color: #6c757d;
 }
 
 body {
@@ -210,15 +210,15 @@ tr:nth-child(even) {
 
 /* 判定結果のカードを枠内に収めるための修正 */
 #results-container {
-    display: flex; /* Flexboxで柔軟な配置に */
-    flex-wrap: wrap; /* 画面幅に合わせて折り返し */
-    gap: 25px; /* カード間の隙間 */
-    justify-content: center; /* カードを水平方向の中央に配置 */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    justify-content: center;
     margin-top: 30px;
 }
 .result-card {
-    max-width: 450px; /* カードの最大幅を設定 */
-    width: 100%;     /* 親要素の幅を基準に100%確保 */
+    max-width: 450px;
+    width: 100%;
     background-color: var(--white);
     padding: 20px;
     border-radius: 12px;
@@ -250,7 +250,7 @@ tr:nth-child(even) {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 4.5em; /* 文字を大きく */
+    font-size: 4.5em;
     font-weight: 700;
     color: var(--white);
     text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
@@ -319,83 +319,8 @@ tr:nth-child(even) {
     h1 { font-size: 1.8em; }
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
-
-    /* テーブルヘッダーは非表示にする */
-    #subjects-table thead {
-        display: none;
-    }
-
-    /* 各行をグリッドコンテナとして設定 */
-    #subjects-table tr {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto;
-        gap: 10px;
-        padding: 15px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        margin-bottom: 15px;
-    }
-
-    /* 各セルをグリッド内に配置 */
-    #subjects-table tr td {
-        display: flex;
-        align-items: center;
-    }
     
-    /* 科目名（1列目）は1行目全体に配置 */
-    #subjects-table tr td:nth-child(1) {
-        grid-column: 1 / 3;
-        grid-row: 1;
-    }
-
-    /* 単位数（2列目）と成績（3列目）を2行目に配置 */
-    #subjects-table tr td:nth-child(2) {
-        grid-column: 1;
-        grid-row: 2;
-    }
-    #subjects-table tr td:nth-child(3) {
-        grid-column: 1;
-        grid-row: 2;
-        margin-left: 10px;
-    }
-
-    /* 削除ボタン（4列目）は1行目の右に配置 */
-    #subjects-table tr td:nth-child(4) {
-        grid-column: 2;
-        grid-row: 1;
-        justify-content: flex-end;
-    }
-
-    /* 入力フィールドの幅を調整 */
-    #subjects-table td input {
-        width: 100%;
-        text-align: left;
-    }
-
-    /* 単位数と成績の入力フィールドの幅を調整 */
-    #subjects-table tr td:nth-child(2) input,
-    #subjects-table tr td:nth-child(3) input {
-        width: 100%;
-        text-align: center;
-    }
-
-    /* 入力欄の横にラベルを追加 */
-    #subjects-table td:nth-child(2)::before {
-        content: "単位数: ";
-        font-weight: bold;
-        color: #6c757d;
-        margin-right: 5px;
-    }
-
-    #subjects-table td:nth-child(3)::before {
-        content: "成績: ";
-        font-weight: bold;
-        color: #6c757d;
-        margin-right: 5px;
-    }
-    
-    /* その他のスマホ向けスタイル */
+    /* 判定結果のカードのレイアウト調整 */
     .result-card {
         max-width: 100%;
         width: 100%;
@@ -412,9 +337,61 @@ tr:nth-child(even) {
     #subjects-table { table-layout: auto; }
     .subject-credits, .subject-grade { width: 100%; min-width: 70px; }
     .panel h2 { margin: 0; padding-bottom: 1rem; }
-}
-
-.panel h2 {
-    margin: 0;
-    padding-bottom: 1rem;
+    
+    /* 成績入力ページのテーブルを2段レイアウトにする修正 */
+    #subjects-table thead {
+        display: none;
+    }
+    #subjects-table tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        gap: 10px;
+        padding: 15px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    #subjects-table tr td {
+        display: flex;
+        align-items: center;
+    }
+    #subjects-table tr td:nth-child(1) {
+        grid-column: 1 / 3;
+        grid-row: 1;
+    }
+    #subjects-table tr td:nth-child(2) {
+        grid-column: 1;
+        grid-row: 2;
+    }
+    #subjects-table tr td:nth-child(3) {
+        grid-column: 2;
+        grid-row: 2;
+    }
+    #subjects-table tr td:nth-child(4) {
+        grid-column: 2;
+        grid-row: 1;
+        justify-content: flex-end;
+    }
+    #subjects-table td input {
+        width: 100%;
+        text-align: left;
+    }
+    #subjects-table tr td:nth-child(2) input,
+    #subjects-table tr td:nth-child(3) input {
+        width: 100%;
+        text-align: center;
+    }
+    #subjects-table td:nth-child(2)::before {
+        content: "単位数: ";
+        font-weight: bold;
+        color: #6c757d;
+        margin-right: 5px;
+    }
+    #subjects-table td:nth-child(3)::before {
+        content: "成績: ";
+        font-weight: bold;
+        color: #6c757d;
+        margin-right: 5px;
+    }
 }
