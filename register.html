@@ -15,6 +15,13 @@
             <h2>新規登録</h2>
             <input type="email" id="email" placeholder="メールアドレス" required>
             <input type="password" id="password" placeholder="パスワード（6文字以上）" required>
+            
+            <select id="role-select" style="width: 100%; margin: 15px auto; display: block;">
+                <option value="arts">文系</option>
+                <option value="sci_1">理系Ⅰ</option>
+                <option value="sci_2">理系Ⅱ</option>
+                <option value="sci_3">理系Ⅲ</option>
+            </select>
             <div class="user-actions">
                 <button id="register-btn" class="btn-action" style="width:100%;">登録する</button>
             </div>
@@ -29,22 +36,33 @@
         const registerBtn = document.getElementById('register-btn');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
+        const roleSelect = document.getElementById('role-select'); // 追加
         const authMessage = document.getElementById('auth-message');
-        document.addEventListener('DOMContentLoaded', async () => {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) { window.location.href = 'input.html'; }
-        });
+
+        document.addEventListener('DOMContentLoaded', async () => { /* ... 変更なし ... */ });
+
         registerBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
+            const role = roleSelect.value; // 追加
             authMessage.textContent = '';
+            
+            // ▼▼▼ サインアップ情報にロールを追加 ▼▼▼
             const { data, error } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
-                options: { emailRedirectTo: `${SITE_BASE_URL}/input.html` }
+                options: {
+                    emailRedirectTo: `${SITE_BASE_URL}/input.html`,
+                    data: {
+                        role: role 
+                    }
+                }
             });
-            if (error) { authMessage.textContent = '登録エラー: ' + error.message; } 
-            else {
+            // ▲▲▲ ここまで ▲▲▲
+
+            if (error) {
+                authMessage.textContent = '登録エラー: ' + error.message;
+            } else {
                 alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、ログインページからログインしてください。');
                 window.location.href = 'index.html';
             }
