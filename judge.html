@@ -31,6 +31,7 @@
     <script>
         let currentUser = null;
         let savedSubjects = [];
+        let savedTargetMajors = []; 
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const calculateBtn = document.getElementById('calculate-btn');
@@ -75,6 +76,7 @@
                 savedSubjects = (data ? data.subjects : []).map(s => ({
                     name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade)
                 })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
+                savedTargetMajors = data ? data.target_majors : [];
             } catch (e) {
                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message} 入力ページで成績を保存してください。</p>`;
                 calculateBtn.disabled = true;
@@ -83,9 +85,9 @@
 
         calculateBtn.addEventListener('click', () => {
             if (savedSubjects.length === 0) { alert('計算対象の科目がありません。入力ページで成績を保存してください。'); return; }
+            if (!savedTargetMajors || savedTargetMajors.length === 0) { alert('計算対象の学類が登録されていません。「志望学類登録」ページで設定してください。');return; }
             resultsContainer.innerHTML = '';
-            const majorsToCalculate = ['情報科学類（区分A）', '情報科学類（区分B）', '情報メディア創成学類', '知識情報・図書館学類', '物理学類'];
-            majorsToCalculate.forEach(majorName => {
+            savedTargetMajors.forEach(majorName => {
                 const rule = RULES[majorName];
                 let result;
                 if (majorName === '情報科学類（区分A）') result = calculateInfoSciA(savedSubjects, rule);
