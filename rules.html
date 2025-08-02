@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ルール設定 - 成績計算サイト</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="supabase-client.js"></script>
+</head>
+<body>
+    <div id="main-app" class="container" style="display:none;">
+        <nav>
+            <a href="input.html">成績入力</a>
+            <a href="view.html">成績参照</a>
+            <a href="judge.html">判定実行</a>
+            <strong>ルール設定</strong>
+            <a href="account.html">アカウント管理</a>
+        </nav>
+        <div class="user-status">
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
+        </div>
+        <div class="panel">
+            <h2>カスタム計算ルールの設定</h2>
+            <p style="text-align:center;">自分だけの学類ルールを作成・編集します。「判定実行」ページで計算結果を確認できます。</p>
+            <div id="custom-majors-container"></div>
+            <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
+            <hr>
+            <button id="save-rules-btn" class="btn-main" style="width:100%;">すべてのルールを保存</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let masterSubjects = [];
+        let customRules = [];
+
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const customMajorsContainer = document.getElementById('custom-majors-container');
+        const addMajorBtn = document.getElementById('add-major-btn');
+        const saveRulesBtn = document.getElementById('save-rules-btn');
+
+        async function checkSessionAndInitialize() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = 'index.html'; return; }
+            currentUser = session.user;
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${currentUser.email} でログイン中`;
+            await initializeApp();
+        }
+
+        async function initializeApp() {
+            try {
+                const response = await fetch('kdb_2025.csv');
+                const csvText = await response.text();
+                Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
+                    const uniqueSubjects = new Map();
+                    results.data.forEach(row => {
+                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                        const credits = parseFloat(row['単位数']);
+                        if(name && !isNaN(credits)) {
+                            const key = `${name}|${credits}`;
+                            if (!uniqueSubjects.has(key)) { uniqueSubjects.set(key, { name, credits }); }
+                        }
+                    });
+                    masterSubjects = Array.from(uniqueSubjects.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                }});
+            } catch (error) { alert('科目マスターリストの読み込みに失敗しました。'); }
+            await loadCustomRules();
+        }
+
+        async function loadCustomRules() {
+            try {
+                const { data, error } = await supabaseClient.from('user_data').select('custom_rules').eq('id', currentUser.id).single();
+                if (error && error.code !== 'PGRST116') throw error;
+                customRules = (data && data.custom_rules) ? data.custom_rules : [];
+                renderAllRules();
+            } catch (e) { console.error('カスタムルールの読み込み失敗:', e); }
+        }
+
+        function renderAllRules() {
+            customMajorsContainer.innerHTML = '';
+            customRules.forEach((rule, index) => {
+                const ruleEl = createRuleElement(rule, index);
+                customMajorsContainer.appendChild(ruleEl);
+            });
+        }
+
+        function createRuleElement(rule, majorIndex) {
+            const majorDiv = document.createElement('div');
+            majorDiv.className = 'panel';
+            majorDiv.style.marginTop = '20px';
+            majorDiv.dataset.majorIndex = majorIndex;
+
+            let groupsHTML = '';
+            rule.groups.forEach((group, groupIndex) => {
+                groupsHTML += createGroupHTML(group, majorIndex, groupIndex);
+            });
+
+            majorDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <input type="text" class="major-name" value="${rule.name}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
+                    <button class="btn-danger remove-major-btn">この学類を削除</button>
+                </div>
+                <div class="rule-settings-grid">
+                    <input type="number" class="total-cap" value="${rule.totalCap}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight}" step="0.1" placeholder="その他重み">
+                </div>
+                <div class="groups-container">${groupsHTML}</div>
+                <button class="btn-add add-group-btn">科目グループを追加</button>
+            `;
+            return majorDiv;
+        }
+
+        function createGroupHTML(group, majorIndex, groupIndex) {
+            let subjectsHTML = '';
+            group.subjects.forEach(subjectName => {
+                subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
+            });
+
+            return `
+                <div class="group-box" data-group-index="${groupIndex}">
+                    <input type="text" class="group-name" value="${group.name}" placeholder="グループ名">
+                    <input type="number" class="group-weight" value="${group.weight}" step="0.1" placeholder="重み">
+                    <input type="number" class="group-cap" value="${group.cap}" placeholder="単位数上限">
+                    <div class="subjects-container">${subjectsHTML}</div>
+                    <select class="subject-select"><option value="">科目を選択して追加...</option></select>
+                    <button class="btn-danger remove-group-btn">このグループを削除</button>
+                </div>
+            `;
+        }
+        
+        document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
+
+        addMajorBtn.addEventListener('click', () => {
+            customRules.push({ name: '新しい学類', groups: [], totalCap: 24, otherWeight: 1.0 });
+            renderAllRules();
+        });
+
+        saveRulesBtn.addEventListener('click', async () => {
+            // UIから最新のルールデータを読み取る
+            const updatedRules = [];
+            document.querySelectorAll('[data-major-index]').forEach(majorEl => {
+                const majorIndex = parseInt(majorEl.dataset.majorIndex);
+                const majorRule = {
+                    name: majorEl.querySelector('.major-name').value,
+                    totalCap: parseFloat(majorEl.querySelector('.total-cap').value),
+                    otherWeight: parseFloat(majorEl.querySelector('.other-weight').value),
+                    groups: []
+                };
+                majorEl.querySelectorAll('.group-box').forEach(groupEl => {
+                    majorRule.groups.push({
+                        name: groupEl.querySelector('.group-name').value,
+                        weight: parseFloat(groupEl.querySelector('.group-weight').value),
+                        cap: parseFloat(groupEl.querySelector('.group-cap').value),
+                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
+                    });
+                });
+                updatedRules.push(majorRule);
+            });
+            customRules = updatedRules;
+            
+            const { data, error } = await supabaseClient
+                .from('user_data')
+                .upsert({ id: currentUser.id, custom_rules: customRules, updated_at: new Date() });
+            if(error) { alert('ルールの保存に失敗: ' + error.message); }
+            else { alert('ルールを保存しました。'); }
+        });
+    </script>
+</body>
+</html>
