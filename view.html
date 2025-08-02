@@ -13,8 +13,8 @@
         <nav>
             <a href="input.html">成績入力</a>
             <strong>成績参照</strong>
-            <a href="majors.html">志望学類登録</a>
             <a href="judge.html">判定実行</a>
+            <a href="rules.html">ルール設定</a>
             <a href="account.html">アカウント管理</a>
         </nav>
         <div class="user-status">
@@ -35,27 +35,17 @@
         let currentUser = null;
         async function checkSessionAndLoad() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = '/login.html';
-                return;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return; }
             currentUser = session.user;
             document.getElementById('main-app').style.display = 'block';
             document.getElementById('user-display').textContent = `${currentUser.email} でログイン中`;
             await loadAndDisplayGrades();
         }
-
         async function loadAndDisplayGrades() {
             const tableBody = document.querySelector('#view-table tbody');
             try {
-                const { data, error } = await supabaseClient
-                    .from('user_data')
-                    .select('subjects')
-                    .eq('id', currentUser.id)
-                    .single();
-                
+                const { data, error } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
                 if (error && error.code !== 'PGRST116') throw new Error('データが見つかりません。入力ページで成績を保存してください。');
-                
                 const subjects = data ? data.subjects : [];
                 tableBody.innerHTML = '';
                 if (subjects.length > 0) {
@@ -73,7 +63,7 @@
         document.addEventListener('DOMContentLoaded', checkSessionAndLoad);
         document.getElementById('logout-btn').addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
-            window.location.href = '/login.html';
+            window.location.href = 'index.html';
         });
     </script>
 </body>
