@@ -78,7 +78,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['科目名'] ? row['科目名'].trim() : '';
+                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
@@ -165,11 +165,9 @@
                 credits: row.querySelector('.subject-credits').value,
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
-            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('*').eq('id', currentUser.id).single();
-            if (fetchError && fetchError.code !== 'PGRST116') { alert('データの取得に失敗: ' + fetchError.message); return; }
-            const updatedData = { ...existingData, id: currentUser.id, subjects: subjects, updated_at: new Date() };
-            const { data, error } = await supabaseClient.from('user_data').upsert(updatedData);
-            if (error) { alert('保存に失敗しました: ' + error.message); } else { alert('保存しました。'); }
+            const { data, error } = await supabaseClient.from('user_data').upsert({ id: currentUser.id, subjects: subjects, updated_at: new Date() });
+            if (error) { alert('保存に失敗しました: ' + error.message); } 
+            else { alert('成績リストを保存しました。'); }
         });
     </script>
 </body>
