@@ -14,12 +14,12 @@ nav a:hover { background-color: var(--secondary-color); }
 nav strong { background-color: #003f5c; }
 button { padding: 10px 15px; font-size: 16px; font-weight: 500; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.2s ease-in-out; }
 button:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-input[type="text"], input[type="number"] { padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], select { padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
 .auth-container input { display: block; width: 100%; margin: 15px auto; }
 #auth-message { color: var(--danger-color); height: 20px; margin-top: 15px; text-align: center; }
 .subject-name { width: 100%; }
 .subject-credits, .subject-grade { width: 100px; text-align: center; }
-input:focus { outline: none; border-color: var(--secondary-color); box-shadow: 0 0 0 3px rgba(10, 147, 150, 0.2); }
+input:focus, select:focus { outline: none; border-color: var(--secondary-color); box-shadow: 0 0 0 3px rgba(10, 147, 150, 0.2); }
 .user-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
 .btn-main { background-color: var(--primary-color); }
 .btn-action { background-color: var(--secondary-color); }
@@ -63,6 +63,17 @@ tr:nth-child(even) { background-color: #f8f9fa; }
 .result-card .rank-info { text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-color); }
 .result-card .rank-info .rank-value { font-size: 1.8em; font-weight: bold; color: var(--primary-color); }
 .result-card .rank-info .deviation-value { font-size: 1.2em; font-weight: 500; color: var(--secondary-color); }
+.account-section { padding: 20px; margin-top: 20px; border: 1px solid var(--border-color); border-radius: 8px; }
+.account-section h3 { text-align: left; margin-top: 0; border-bottom: none; }
+.account-section input { width: 100%; margin-bottom: 15px; }
+.account-section button { display: block; width: auto; margin-left: auto; }
+.rule-editor { border: 1px solid var(--border-color); border-radius: 8px; margin-top: 20px; padding: 20px; }
+.rule-editor-header { display: flex; justify-content: space-between; align-items: center; }
+.rule-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 15px 0; }
+.group-box { border: 1px solid #aaa; border-radius: 5px; padding: 15px; margin-top: 15px; background-color: #fafafa;}
+.subjects-container { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; padding: 10px; background-color: #f0f2f5; border-radius: 5px; min-height: 30px; }
+.subject-tag { background-color: var(--primary-color); color: white; padding: 5px 10px; border-radius: 15px; font-size: 0.9em; display: flex; align-items: center; }
+.remove-subject-tag { margin-left: 8px; cursor: pointer; font-weight: bold; }
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
