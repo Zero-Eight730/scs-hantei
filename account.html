@@ -87,6 +87,7 @@
             await supabaseClient.auth.signOut();
             window.location.href = 'index.html';
         });
+
         updateEmailBtn.addEventListener('click', async () => {
             const newEmail = newEmailInput.value.trim();
             if (!newEmail) { alert('新しいメールアドレスを入力してください。'); return; }
@@ -97,6 +98,7 @@
             if (error) { alert('エラー: ' + error.message); } 
             else { alert('確認メールを新しいアドレスと古いアドレスの両方に送信しました。新しいメールのリンクをクリックして変更を完了してください。'); newEmailInput.value = ''; }
         });
+
         updatePasswordBtn.addEventListener('click', async () => {
             const newPassword = newPasswordInput.value;
             if (!newPassword || newPassword.length < 6) { alert('パスワードは6文字以上で入力してください。'); return; }
@@ -104,6 +106,7 @@
             if (error) { alert('エラー: ' + error.message); } 
             else { alert('パスワードが正常に変更されました。'); newPasswordInput.value = ''; }
         });
+
         deleteAccountBtn.addEventListener('click', async () => {
             const confirmation = prompt('アカウントを本当に削除しますか？この操作は元に戻せません。\n\n確認のため、あなたの現在のメールアドレスを入力してください。');
             if (confirmation !== currentUser.email) { alert('メールアドレスが一致しません。操作はキャンセルされました。'); return; }
