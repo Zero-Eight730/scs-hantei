@@ -165,10 +165,10 @@ th {
 #subjects-table {
     table-layout: fixed;
 }
-#subjects-table .col-name { width: 55%; }
-#subjects-table .col-credits { width: 15%; }
-#subjects-table .col-grade { width: 15%; }
-#subjects-table .col-actions { width: 15%; }
+#subjects-table .col-name { width: auto; }
+#subjects-table .col-credits { width: 90px; }
+#subjects-table .col-grade { width: 90px; }
+#subjects-table .col-actions { width: 80px; }
 tr:nth-child(even) {
     background-color: #f8f9fa;
 }
@@ -226,13 +226,16 @@ tr:nth-child(even) {
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 10px;
 }
+
+/* --- ▼▼▼ ここからが修正箇所です ▼▼▼ --- */
 .result-card .judgment {
-    font-size: 4.5em;
-    font-weight: 700;
+    font-size: 4.5em; /* 文字を大きく */
+    font-weight: 700; /* 太字を強調 */
     text-align: center;
     margin: 20px 0;
-    line-height: 1;
+    line-height: 1; /* 行の高さを調整 */
 }
+/* --- ▲▲▲ ここまでが修正箇所です ▲▲▲ --- */
 
 .judgment-A { color: var(--danger-color); }
 .judgment-B { color: var(--warning-color); }
@@ -308,7 +311,6 @@ tr:nth-child(even) {
     display: none;
 }
 
-/* --- ▼▼▼ スマートフォン向けスタイル（レスポンシブ対応） ▼▼▼ --- */
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
@@ -317,52 +319,11 @@ tr:nth-child(even) {
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
     
-    .result-card {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-            "header"
-            "judgment"
-            "details"
-            "breakdown";
-        text-align: center;
-    }
-    .card-header h4 { text-align: center; }
-    .judgment-circle { margin: 0 auto; }
-
     .result-card .judgment { font-size: 3.5em; }
     .result-card .score { font-size: 1.2em; }
     .result-card ul { column-count: 1; }
     
     td, th { font-size: 0.9em; padding: 8px; }
-    
-    /* 成績入力テーブルのレイアウトをスマホ用に変更 */
-    #subjects-table thead {
-        display: none; /* PC用のヘッダーは非表示に */
-    }
-    #subjects-table tr {
-        display: block;
-        border: 1px solid var(--border-color);
-        border-radius: 5px;
-        margin-bottom: 15px;
-        padding: 10px;
-    }
-    #subjects-table td {
-        display: block;
-        border: none;
-        padding: 5px 0;
-    }
-    #subjects-table td:before { /* ラベルを疑似要素で追加 */
-        content: attr(data-label);
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
-        color: var(--primary-color);
-    }
-    .subject-name { font-size: 1.1em; font-weight: bold; }
-    .subject-row-bottom {
-        display: grid;
-        grid-template-columns: 1fr 1fr 80px;
-        gap: 10px;
-        align-items: center;
-    }
+    #subjects-table { table-layout: auto; } 
+    #subjects-table .col-credits, #subjects-table .col-grade { min-width: 70px; }
 }
