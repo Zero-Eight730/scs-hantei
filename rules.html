@@ -24,27 +24,22 @@
             <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
         <div class="panel">
-            <h2>カスタム計算ルールの設定</h2>
-            <p style="text-align:center;">自分だけの学類ルールを作成・編集します。「判定実行」ページで計算結果を確認できます。</p>
+            <h2>学類計算ルール（全ユーザー共通）</h2>
+            <p style="text-align:center;">ここで作成したルールは、全ユーザーが利用できます。編集・削除は作成者のみ可能です。</p>
             <div id="custom-majors-container"></div>
             <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
-            <hr>
-            <button id="save-rules-btn" class="btn-main" style="width:100%;">すべてのルールを保存</button>
         </div>
     </div>
-
     <datalist id="master-subjects-list"></datalist>
-
     <script>
         let currentUser = null;
         let masterSubjects = [];
-        let customRules = [];
+        let majorRules = [];
 
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
         const addMajorBtn = document.getElementById('add-major-btn');
-        const saveRulesBtn = document.getElementById('save-rules-btn');
         const masterSubjectsDatalist = document.getElementById('master-subjects-list');
 
         async function checkSessionAndInitialize() {
@@ -63,7 +58,7 @@
                 Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
                     const uniqueSubjects = new Map();
                     results.data.forEach(row => {
-                        const name = row['科目名'] ? row['科目名'].trim() : '';
+                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                         const credits = parseFloat(row['単位数']);
                         if(name && !isNaN(credits)) {
                             const key = `${name}|${credits}`;
@@ -71,7 +66,6 @@
                         }
                     });
                     masterSubjects = Array.from(uniqueSubjects.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                    
                     masterSubjectsDatalist.innerHTML = '';
                     masterSubjects.forEach(subject => {
                         const option = document.createElement('option');
@@ -80,66 +74,65 @@
                     });
                 }});
             } catch (error) { alert('科目マスターリストの読み込みに失敗しました。'); }
-            await loadCustomRules();
+            await loadMajorRules();
         }
 
-        async function loadCustomRules() {
+        async function loadMajorRules() {
             try {
-                const { data, error } = await supabaseClient.from('user_data').select('custom_rules').eq('id', currentUser.id).single();
-                if (error && error.code !== 'PGRST116') throw error;
-                customRules = (data && data.custom_rules) ? data.custom_rules : [];
+                const { data, error } = await supabaseClient.from('major_rules').select('*, rule_data:rule_data(*)');
+                if (error) throw error;
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, ...r.rule_data, name: r.name }));
                 renderAllRules();
-            } catch (e) { console.error('カスタムルールの読み込み失敗:', e); }
+            } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
 
         function renderAllRules() {
             customMajorsContainer.innerHTML = '';
-            customRules.forEach((rule, index) => {
-                const ruleEl = createRuleElement(rule, index);
+            majorRules.forEach((rule, index) => {
+                const isOwner = rule.userId === currentUser.id;
+                const ruleEl = createRuleElement(rule, index, isOwner);
                 customMajorsContainer.appendChild(ruleEl);
             });
         }
 
-        function createRuleElement(rule, majorIndex) {
+        function createRuleElement(rule, majorIndex, isOwner) {
             const majorDiv = document.createElement('div');
             majorDiv.className = 'rule-editor';
-            majorDiv.dataset.majorIndex = majorIndex;
-
+            majorDiv.dataset.majorId = rule.id || `new-${majorIndex}`;
             let groupsHTML = '';
             (rule.groups || []).forEach((group, groupIndex) => {
-                groupsHTML += createGroupHTML(group, groupIndex);
+                groupsHTML += createGroupHTML(group);
             });
-
             majorDiv.innerHTML = `
                 <div class="rule-editor-header">
-                    <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
-                    <button class="btn-danger remove-major-btn">この学類を削除</button>
+                    <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" ${!isOwner && rule.id ? 'disabled' : ''} style="font-size: 1.2em; font-weight: bold;">
+                    ${isOwner ? `<button class="btn-danger remove-major-btn" data-id="${rule.id}">この学類を削除</button>` : ''}
                 </div>
                 <div class="rule-settings-grid">
-                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
-                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
-                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
+                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限" ${!isOwner ? 'disabled' : ''}>
+                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み" ${!isOwner ? 'disabled' : ''}>
+                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)" ${!isOwner ? 'disabled' : ''}>
+                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)" ${!isOwner ? 'disabled' : ''}>
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
-                <button class="btn-add add-group-btn">科目グループを追加</button>
+                ${isOwner ? '<button class="btn-add add-group-btn">科目グループを追加</button>' : ''}
+                ${isOwner ? `<button class="btn-main save-one-rule-btn" data-id="${rule.id}" style="width:100%; margin-top:10px;">このルールを保存</button>` : ''}
             `;
             return majorDiv;
         }
-
+        
         function createGroupHTML(group) {
             let subjectsHTML = '';
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
-
             return `
                 <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名 (例: 重点科目)">
-                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み (例: 2.0)">
-                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限 (例: 18)">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み">
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限">
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
@@ -151,86 +144,57 @@
                 </div>
             `;
         }
-        
+
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            customRules.push({ name: '新しい学類', groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0 });
+            const newRule = { name: '', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0 };
+            majorRules.push(newRule);
             renderAllRules();
         });
 
-        customMajorsContainer.addEventListener('click', (e) => {
+        customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-            
-            if (target.classList.contains('remove-major-btn')) {
-                if (confirm(`この学類ルールを削除しますか？\n（「すべてのルールを保存」を押すまで確定されません）`)) {
-                    ruleEditor.remove();
-                }
-            } else if (target.classList.contains('add-group-btn')) {
-                const groupsContainer = ruleEditor.querySelector('.groups-container');
-                groupsContainer.insertAdjacentHTML('beforeend', createGroupHTML({}));
-            } else if (target.classList.contains('remove-group-btn')) {
-                target.closest('.group-box').remove();
-            } else if (target.classList.contains('remove-subject-tag')) {
-                target.parentElement.remove();
-            } else if (target.classList.contains('add-subject-to-group-btn')) {
-                const input = target.previousElementSibling;
-                const subjectName = input.value.trim();
-                if (subjectName) {
-                    const subjectsContainer = input.closest('.group-box').querySelector('.subjects-container');
-                    const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
-                    if (!existingSubjects.includes(subjectName)) {
-                        subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
-                    }
-                    input.value = '';
-                }
-            }
-        });
-        
-        saveRulesBtn.addEventListener('click', async () => {
-            const updatedRules = [];
-            document.querySelectorAll('.rule-editor').forEach(majorEl => {
-                const majorRule = {
-                    name: majorEl.querySelector('.major-name').value.trim(),
-                    totalCap: parseFloat(majorEl.querySelector('.total-cap').value) || 0,
-                    otherWeight: parseFloat(majorEl.querySelector('.other-weight').value) || 0,
-                    passThreshold: parseFloat(majorEl.querySelector('.pass-threshold').value) || 0,
-                    medianThreshold: parseFloat(majorEl.querySelector('.median-threshold').value) || 0,
-                    groups: []
-                };
-                majorEl.querySelectorAll('.group-box').forEach(groupEl => {
-                    majorRule.groups.push({
-                        name: groupEl.querySelector('.group-name').value.trim(),
-                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
-                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
-                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
-                    });
-                });
-                if (majorRule.name) {
-                    updatedRules.push(majorRule);
-                }
-            });
-            
-            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
-            if (fetchError && fetchError.code !== 'PGRST116') { alert('既存データの取得に失敗: ' + fetchError.message); return; }
-            
-            const updatedData = { 
-                id: currentUser.id, 
-                subjects: existingData ? existingData.subjects : [],
-                target_majors: existingData ? existingData.target_majors : [],
-                custom_rules: updatedRules, 
-                updated_at: new Date() 
-            };
 
-            const { data, error } = await supabaseClient.from('user_data').upsert(updatedData);
-            if(error) { alert('ルールの保存に失敗: ' + error.message); }
-            else { 
-                alert('ルールを保存しました。');
-                customRules = updatedRules;
-                renderAllRules();
+            if (target.classList.contains('remove-major-btn')) {
+                const ruleId = target.dataset.id;
+                const ruleName = ruleEditor.querySelector('.major-name').value;
+                if (confirm(`「${ruleName}」を完全に削除しますか？この操作は元に戻せません。`)) {
+                    const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
+                    if (error) alert('削除に失敗: ' + error.message);
+                    else { alert('削除しました。'); await loadMajorRules(); }
+                }
+            } else if (target.classList.contains('save-one-rule-btn')) {
+                const ruleId = target.dataset.id.startsWith('new-') ? null : target.dataset.id;
+                const ruleData = {
+                    name: ruleEditor.querySelector('.major-name').value.trim(),
+                    rule_data: {
+                        totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                        otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
+                        passThreshold: parseFloat(ruleEditor.querySelector('.pass-threshold').value) || 0,
+                        medianThreshold: parseFloat(ruleEditor.querySelector('.median-threshold').value) || 0,
+                        groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({
+                            name: groupEl.querySelector('.group-name').value.trim(),
+                            weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
+                            cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
+                            subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
+                        }))
+                    }
+                };
+                if (!ruleData.name) { alert('学類名は必須です。'); return; }
+
+                let query;
+                if (ruleId) {
+                    query = supabaseClient.from('major_rules').update(ruleData).eq('id', ruleId);
+                } else {
+                    query = supabaseClient.from('major_rules').insert({ ...ruleData, user_id: currentUser.id });
+                }
+                const { error } = await query;
+                if (error) { alert('保存に失敗: ' + error.message); }
+                else { alert(`「${ruleData.name}」を保存しました。`); await loadMajorRules(); }
             }
         });
     </script>
