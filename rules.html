@@ -78,7 +78,7 @@
                 Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
                     const uniqueSubjects = new Map();
                     results.data.forEach(row => {
-                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                        const name = row['科目名'] ? row['科目名'].trim() : '';
                         const credits = parseFloat(row['単位数']);
                         if(name && !isNaN(credits)) {
                             const key = `${name}|${credits}`;
@@ -125,6 +125,7 @@
             });
             
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
+            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
             for (const [roleKey, roleName] of Object.entries(roles)) {
                 const isChecked = (rule.allowed_roles || []).includes(roleKey);
                 rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
@@ -132,7 +133,6 @@
             rolesHTML += '</div>';
 
             majorDiv.innerHTML = `
-                <div class="roles-container"><h5>対象ロール</h5>
                 <div class="rule-editor-header">
                     <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
                     <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>
