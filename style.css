@@ -309,6 +309,7 @@ tr:nth-child(even) {
 
 .admin-only { display: none; }
 
+/* --- ▼▼▼ スマートフォン向けスタイル（レスポンシブ対応） ▼▼▼ --- */
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
@@ -318,16 +319,51 @@ tr:nth-child(even) {
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
     
     .result-card {
-        grid-template-columns: 90px 1fr; /* スマホ用に調整 */
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "header"
+            "judgment"
+            "details"
+            "breakdown";
+        text-align: center;
     }
-    .judgment-circle {
-        width: 70px;
-        height: 70px;
-        font-size: 3em; /* スマホ用に調整 */
-    }
+    .card-header h4 { text-align: center; }
+    .judgment-circle { margin: 0 auto; }
+
+    .result-card .judgment { font-size: 3.5em; }
+    .result-card .score { font-size: 1.2em; }
     .result-card ul { column-count: 1; }
     
     td, th { font-size: 0.9em; padding: 8px; }
-    #subjects-table { table-layout: auto; } 
-    .subject-credits, .subject-grade { width: 100%; min-width: 70px; }
+    
+    /* 成績入力テーブルのレイアウトをスマホ用に変更 */
+    #subjects-table thead {
+        display: none; /* PC用のヘッダーは非表示に */
+    }
+    #subjects-table tr {
+        display: block;
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        margin-bottom: 15px;
+        padding: 10px;
+    }
+    #subjects-table td {
+        display: block;
+        border: none;
+        padding: 5px 0;
+    }
+    #subjects-table td:before { /* ラベルを疑似要素で追加 */
+        content: attr(data-label);
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+        color: var(--primary-color);
+    }
+    .subject-name { font-size: 1.1em; font-weight: bold; }
+    .subject-row-bottom {
+        display: grid;
+        grid-template-columns: 1fr 1fr 80px;
+        gap: 10px;
+        align-items: center;
+    }
 }
