@@ -59,14 +59,19 @@
         const addRowBtn = document.getElementById('add-row-btn');
         const saveBtn = document.getElementById('save-btn');
         const loadingStatus = document.getElementById('loading-status');
+
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'index.html'; return; }
+            if (error || !session) {
+                window.location.href = 'index.html';
+                return;
+            }
             currentUser = session.user;
             document.getElementById('main-app').style.display = 'block';
             userDisplay.textContent = `${currentUser.email} でログイン中`;
             await initializeApp();
         }
+
         async function initializeApp() {
             loadingStatus.textContent = '科目データを読み込み中...';
             searchInput.disabled = true;
@@ -83,7 +88,9 @@
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
-                                if (!uniqueSubjects.has(key)) { uniqueSubjects.set(key, { name, credits }); }
+                                if (!uniqueSubjects.has(key)) {
+                                    uniqueSubjects.set(key, { name, credits });
+                                }
                             }
                         });
                         masterSubjects = Array.from(uniqueSubjects.values());
@@ -93,9 +100,12 @@
                 searchInput.disabled = false;
                 searchInput.placeholder = '科目ライブラリから検索...';
                 setTimeout(() => { loadingStatus.textContent = ''; }, 3000);
-            } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
+            } catch (error) {
+                loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`;
+            }
             await loadSubjects();
         }
+
         function createSubjectRow(subject = {}) {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -106,28 +116,39 @@
             `;
             subjectsTableBody.appendChild(row);
         }
+
         function populateTable(subjects) {
             subjectsTableBody.innerHTML = '';
             if (subjects && subjects.length > 0) {
                 subjects.forEach(createSubjectRow);
-            } else { createSubjectRow(); }
+            } else {
+                createSubjectRow();
+            }
         }
+
         async function loadSubjects() {
              try {
                 const { data, error } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
                 if (error && error.code !== 'PGRST116') throw error;
                 populateTable(data ? data.subjects : []);
-            } catch (e) { populateTable([]); }
+            } catch (e) {
+                populateTable([]);
+            }
         }
+
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
         addRowBtn.addEventListener('click', () => createSubjectRow());
         subjectsTableBody.addEventListener('click', (e) => {
-            if (e.target.classList.contains('btn-remove')) { e.target.closest('tr').remove(); }
+            if (e.target.classList.contains('btn-remove')) {
+                e.target.closest('tr').remove();
+            }
         });
+
         logoutBtn.addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             window.location.href = 'index.html';
         });
+
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.toLowerCase();
             searchResultsContainer.innerHTML = '';
@@ -150,43 +171,53 @@
                 searchResultsContainer.appendChild(moreResults);
             }
         });
+
         searchResultsContainer.addEventListener('click', (event) => {
             if (event.target.classList.contains('btn-add')) {
                 const { name, credits } = event.target.dataset;
                 const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
-                if (currentSubjects.includes(name)) { alert('この科目は既に追加されています。'); return; }
+                if (currentSubjects.includes(name)) {
+                    alert('この科目は既に追加されています。');
+                    return;
+                }
                 createSubjectRow({ name, credits: parseFloat(credits) });
                 searchInput.value = '';
                 searchResultsContainer.innerHTML = '';
             }
         });
+
         saveBtn.addEventListener('click', async () => {
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中...';
-            const subjects = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
+
+            const subjectsRaw = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
                 name: row.querySelector('.subject-name').value.trim(),
                 credits: row.querySelector('.subject-credits').value,
                 grade: row.querySelector('.subject-grade').value
             })).filter(s => s.name);
-            
-            const subjectsForCalc = subjects.map(s => ({
+
+            const subjectsForCalc = subjectsRaw.map(s => ({
                 name: s.name,
                 credits: parseFloat(s.credits),
                 grade: parseFloat(s.grade)
-            })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
+            })).filter(s => !isNaN(s.credits) && !isNaN(s.grade));
 
             try {
-                const { data: existingData } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
+                const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
+                if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
                 const { error: subjectSaveError } = await supabaseClient.from('user_data').upsert({ 
                     id: currentUser.id, 
-                    subjects: subjects, 
+                    subjects: subjectsRaw, 
                     custom_rules: existingData ? existingData.custom_rules : [],
                     target_majors: existingData ? existingData.target_majors : [],
                     updated_at: new Date() 
                 });
                 if (subjectSaveError) throw subjectSaveError;
 
-                const { data: rulesData } = await supabaseClient.from('major_rules').select('name, rule_data');
+                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
+                if (rulesError) throw rulesError;
+
                 const allRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
                 const scoresToUpsert = [];
 
@@ -200,9 +231,10 @@
                 });
                 
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
+
                 alert('成績リストと計算済みスコアを保存しました。');
             } catch(error) {
                 alert('保存に失敗しました: ' + error.message);
