@@ -12,6 +12,7 @@
     --text-light: #f8f9fa;
     --border-color: #dee2e6;
     --shadow: 0 4px 12px rgba(0,0,0,0.08);
+    --grade-e-color: #6c757d; /* 判定Eのカラーを追加 */
 }
 
 body {
@@ -207,13 +208,17 @@ tr:nth-child(even) {
 }
 .result-item:last-child { border-bottom: none; }
 
+/* 判定結果のカードを枠内に収めるための修正 */
 #results-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-    gap: 25px;
+    display: flex; /* Flexboxで柔軟な配置に */
+    flex-wrap: wrap; /* 画面幅に合わせて折り返し */
+    gap: 25px; /* カード間の隙間 */
+    justify-content: center; /* カードを水平方向の中央に配置 */
     margin-top: 30px;
 }
 .result-card {
+    max-width: 450px; /* カードの最大幅を設定 */
+    width: 100%;     /* 親要素の幅を基準に100%確保 */
     background-color: var(--white);
     padding: 20px;
     border-radius: 12px;
@@ -232,7 +237,6 @@ tr:nth-child(even) {
 .card-header { grid-area: header; }
 .card-header h4 { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); text-align: left;}
 
-/* --- ▼▼▼ ここからが修正箇所です ▼▼▼ --- */
 .judgment-display {
     grid-area: judgment;
     display: flex;
@@ -280,7 +284,6 @@ tr:nth-child(even) {
 .grade-C { background: var(--success-color); }
 .grade-D { background: var(--secondary-color); }
 .grade-E { background: var(--grade-e-color); }
-/* --- ▲▲▲ ここまで ▲▲▲ --- */
 
 .result-card ul { list-style-type: none; padding-left: 0; font-family: monospace; }
 .result-card li { padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.85em;}
@@ -317,24 +320,23 @@ tr:nth-child(even) {
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
     
+    /* スマホ向けにカードのレイアウトを調整 */
     .result-card {
-        grid-template-columns: 90px 1fr; /* スマホ用に調整 */
+        grid-template-columns: 90px 1fr;
     }
     .judgment-circle {
         width: 70px;
         height: 70px;
-        font-size: 3em; /* スマホ用に調整 */
+        font-size: 3em;
     }
     .result-card ul { column-count: 1; }
     
     td, th { font-size: 0.9em; padding: 8px; }
-    #subjects-table { table-layout: auto; } 
+    #subjects-table { table-layout: auto; }
     .subject-credits, .subject-grade { width: 100%; min-width: 70px; }
 }
 
-
-/* style.css に追加 */
 .panel h2 {
     margin: 0;
-    /* 必要に応じて、見出しの下に少しスペースを追加 */
-    padding-bottom: 1rem; /* 例 */
+    padding-bottom: 1rem;
+}
