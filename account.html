@@ -43,7 +43,7 @@
 
             <div class="account-section">
                 <h3>アカウントの削除</h3>
-                <p style="color: var(--danger-color);">この操作は元に戻せません。すべての中間・保存データが完全に削除されます。</p>
+                <p style="color: var(--danger-color);">この操作は元に戻せません。すべての成績データが完全に削除されます。</p>
                 <button id="delete-account-btn" class="btn-danger">アカウントを完全に削除する</button>
             </div>
         </div>
@@ -86,12 +86,17 @@
                 return;
             }
 
-            const { data, error } = await supabaseClient.auth.updateUser({ email: newEmail });
+            // ▼▼▼ emailRedirectTo を追加 ▼▼▼
+            const { data, error } = await supabaseClient.auth.updateUser(
+                { email: newEmail },
+                { emailRedirectTo: `${SITE_BASE_URL}/input.html` }
+            );
+            // ▲▲▲ ここまで ▲▲▲
 
             if (error) {
                 alert('エラー: ' + error.message);
             } else {
-                alert('確認メールを新しいアドレスに送信しました。メール内のリンクをクリックして変更を完了してください。');
+                alert('確認メールを新しいアドレスと古いアドレスの両方に送信しました。新しいメールのリンクをクリックして変更を完了してください。');
                 newEmailInput.value = '';
             }
         });
@@ -114,13 +119,12 @@
         });
 
         deleteAccountBtn.addEventListener('click', async () => {
-            const confirmation = prompt('アカウントを本当に削除しますか？確認のため、あなたのメールアドレスを入力してください。');
+            const confirmation = prompt('アカウントを本当に削除しますか？この操作は元に戻せません。\n\n確認のため、あなたの現在のメールアドレスを入力してください。');
             if (confirmation !== currentUser.email) {
                 alert('メールアドレスが一致しません。操作はキャンセルされました。');
                 return;
             }
             
-            // SupabaseのRPCでサーバー側の関数を呼び出す
             const { data, error } = await supabaseClient.rpc('delete_user');
 
             if (error) {
