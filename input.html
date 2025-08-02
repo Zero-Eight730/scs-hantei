@@ -91,7 +91,7 @@
                     complete: (results) => {
                         const uniqueSubjects = new Map();
                         results.data.forEach(row => {
-                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                            const name = row['科目名'] ? row['科目名'].trim() : '';
                             const credits = parseFloat(row['単位数']);
                             if(name && !isNaN(credits)) {
                                 const key = `${name}|${credits}`;
