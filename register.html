@@ -30,14 +30,10 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const authMessage = document.getElementById('auth-message');
-
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                window.location.href = 'input.html';
-            }
+            if (session) { window.location.href = 'input.html'; }
         });
-
         registerBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
@@ -47,9 +43,8 @@
                 password: password,
                 options: { emailRedirectTo: `${SITE_BASE_URL}/input.html` }
             });
-            if (error) {
-                authMessage.textContent = '登録エラー: ' + error.message;
-            } else {
+            if (error) { authMessage.textContent = '登録エラー: ' + error.message; } 
+            else {
                 alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、ログインページからログインしてください。');
                 window.location.href = 'index.html';
             }
