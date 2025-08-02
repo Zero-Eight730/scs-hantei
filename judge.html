@@ -138,10 +138,12 @@
             const now = new Date();
             const startTime = rankingSettings.ranking_start_time ? new Date(rankingSettings.ranking_start_time) : null;
             const endTime = rankingSettings.ranking_end_time ? new Date(rankingSettings.ranking_end_time) : null;
-            const isTimeValid = (!startTime || now >= startTime) && (!endTime || now <= endTime);
-            
-            if (rankingSettings.ranking_enabled && isTimeValid) {
-                let judgment = 'N/A';
+            const isPublic = rankingSettings.ranking_enabled && (!startTime || now >= startTime) && (!endTime || now <= endTime);
+
+            // judgment変数をここで初期化
+            let judgment = 'N/A';
+
+            if (isPublic) {
                 if (rule.passThreshold && rule.medianThreshold) {
                     const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
                     const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
@@ -166,7 +168,6 @@
                     rankInfoHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
                 }
             } else {
-                // 判定とランキングを非公開にする場合
                 judgmentHTML = `<div class="judgment-display"><p style="font-size: 0.9em; color: var(--text-muted);">判定は現在非公開です</p></div>`;
                 rankInfoHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">ランキングは現在非公開です</p>`;
             }
@@ -175,16 +176,23 @@
             
             const card = document.createElement('div');
             card.className = `result-card`;
-            if (rankingSettings.ranking_enabled && isTimeValid) {
+            
+            if (isPublic) {
                 card.style.borderTopColor = `var(--grade-${judgment}-color)`;
+            } else {
+                card.style.borderTopColor = `var(--border-color)`;
             }
             
             card.innerHTML = `
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 ${judgmentHTML}
                 <div class="details-display">
-                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
-                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
+                    ${isPublic ? 
+                        `<div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
+                         <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>` :
+                        `<div class="detail-item"><span class="label">移行点</span><span class="value">非公開</span></div>
+                         <div class="detail-item"><span class="label">得点率</span><span class="value">非公開</span></div>`
+                    }
                     <div class="rank-info" id="rank-${safeMajorName}">${rankInfoHTML}</div>
                 </div>
                 <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
