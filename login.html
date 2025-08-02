@@ -29,7 +29,6 @@
         const passwordInput = document.getElementById('password');
         const authMessage = document.getElementById('auth-message');
 
-        // ログイン状態を確認し、ログイン済みなら入力ページへ
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
@@ -48,7 +47,7 @@
             if (error) {
                 authMessage.textContent = '登録エラー: ' + error.message;
             } else {
-                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。');
+                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、再度ログインしてください。');
             }
         });
 
