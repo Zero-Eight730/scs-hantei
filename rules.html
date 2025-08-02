@@ -91,44 +91,58 @@
 
         function createRuleElement(rule, majorIndex) {
             const majorDiv = document.createElement('div');
-            majorDiv.className = 'panel';
-            majorDiv.style.marginTop = '20px';
+            majorDiv.className = 'rule-editor';
             majorDiv.dataset.majorIndex = majorIndex;
 
             let groupsHTML = '';
-            rule.groups.forEach((group, groupIndex) => {
+            (rule.groups || []).forEach((group, groupIndex) => {
                 groupsHTML += createGroupHTML(group, majorIndex, groupIndex);
             });
 
             majorDiv.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <input type="text" class="major-name" value="${rule.name}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
+                <div class="rule-editor-header">
+                    <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
                     <button class="btn-danger remove-major-btn">この学類を削除</button>
                 </div>
                 <div class="rule-settings-grid">
-                    <input type="number" class="total-cap" value="${rule.totalCap}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight}" step="0.1" placeholder="その他重み">
+                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
+                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
+                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
                 <button class="btn-add add-group-btn">科目グループを追加</button>
             `;
+            
+            majorDiv.querySelectorAll('.subject-select').forEach(select => {
+                masterSubjects.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject.name;
+                    option.textContent = `${subject.name} (${subject.credits}単位)`;
+                    select.appendChild(option);
+                });
+            });
             return majorDiv;
         }
 
         function createGroupHTML(group, majorIndex, groupIndex) {
             let subjectsHTML = '';
-            group.subjects.forEach(subjectName => {
+            (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
 
             return `
                 <div class="group-box" data-group-index="${groupIndex}">
-                    <input type="text" class="group-name" value="${group.name}" placeholder="グループ名">
-                    <input type="number" class="group-weight" value="${group.weight}" step="0.1" placeholder="重み">
-                    <input type="number" class="group-cap" value="${group.cap}" placeholder="単位数上限">
+                    <h4>科目グループ</h4>
+                    <div class="rule-settings-grid">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名 (例: 重点科目)">
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み (例: 2.0)">
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限 (例: 18)">
+                    </div>
+                    <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
                     <select class="subject-select"><option value="">科目を選択して追加...</option></select>
-                    <button class="btn-danger remove-group-btn">このグループを削除</button>
+                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
                 </div>
             `;
         }
@@ -137,26 +151,71 @@
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            customRules.push({ name: '新しい学類', groups: [], totalCap: 24, otherWeight: 1.0 });
+            customRules.push({ name: '新しい学類', groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0 });
             renderAllRules();
         });
 
+        customMajorsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-major-btn')) {
+                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+                if (confirm(`「${customRules[majorIndex].name}」を削除しますか？`)) {
+                    customRules.splice(majorIndex, 1);
+                    renderAllRules();
+                }
+            }
+            if (e.target.classList.contains('add-group-btn')) {
+                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+                if (!customRules[majorIndex].groups) customRules[majorIndex].groups = [];
+                customRules[majorIndex].groups.push({ name: '新しいグループ', weight: 1.0, cap: 10, subjects: [] });
+                renderAllRules();
+            }
+            if (e.target.classList.contains('remove-group-btn')) {
+                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
+                customRules[majorIndex].groups.splice(groupIndex, 1);
+                renderAllRules();
+            }
+            if (e.target.classList.contains('remove-subject-tag')) {
+                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
+                const subjectName = e.target.parentElement.textContent.slice(0, -1);
+                const subjectIndex = customRules[majorIndex].groups[groupIndex].subjects.indexOf(subjectName);
+                if (subjectIndex > -1) {
+                    customRules[majorIndex].groups[groupIndex].subjects.splice(subjectIndex, 1);
+                }
+                renderAllRules();
+            }
+        });
+
+        customMajorsContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('subject-select')) {
+                const selectedSubject = e.target.value;
+                if (!selectedSubject) return;
+                const majorIndex = parseInt(e.target.closest('.rule-editor').dataset.majorIndex);
+                const groupIndex = parseInt(e.target.closest('.group-box').dataset.groupIndex);
+                if (!customRules[majorIndex].groups[groupIndex].subjects.includes(selectedSubject)) {
+                    customRules[majorIndex].groups[groupIndex].subjects.push(selectedSubject);
+                }
+                renderAllRules();
+            }
+        });
+        
         saveRulesBtn.addEventListener('click', async () => {
-            // UIから最新のルールデータを読み取る
             const updatedRules = [];
-            document.querySelectorAll('[data-major-index]').forEach(majorEl => {
-                const majorIndex = parseInt(majorEl.dataset.majorIndex);
+            document.querySelectorAll('.rule-editor').forEach(majorEl => {
                 const majorRule = {
                     name: majorEl.querySelector('.major-name').value,
-                    totalCap: parseFloat(majorEl.querySelector('.total-cap').value),
-                    otherWeight: parseFloat(majorEl.querySelector('.other-weight').value),
+                    totalCap: parseFloat(majorEl.querySelector('.total-cap').value) || 0,
+                    otherWeight: parseFloat(majorEl.querySelector('.other-weight').value) || 0,
+                    passThreshold: parseFloat(majorEl.querySelector('.pass-threshold').value) || 0,
+                    medianThreshold: parseFloat(majorEl.querySelector('.median-threshold').value) || 0,
                     groups: []
                 };
                 majorEl.querySelectorAll('.group-box').forEach(groupEl => {
                     majorRule.groups.push({
                         name: groupEl.querySelector('.group-name').value,
-                        weight: parseFloat(groupEl.querySelector('.group-weight').value),
-                        cap: parseFloat(groupEl.querySelector('.group-cap').value),
+                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
+                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
                         subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
                     });
                 });
@@ -164,9 +223,12 @@
             });
             customRules = updatedRules;
             
-            const { data, error } = await supabaseClient
-                .from('user_data')
-                .upsert({ id: currentUser.id, custom_rules: customRules, updated_at: new Date() });
+            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('*').eq('id', currentUser.id).single();
+            if (fetchError && fetchError.code !== 'PGRST116') { alert('データの取得に失敗: ' + fetchError.message); return; }
+            
+            const updatedData = { ...existingData, id: currentUser.id, custom_rules: customRules, updated_at: new Date() };
+
+            const { data, error } = await supabaseClient.from('user_data').upsert(updatedData);
             if(error) { alert('ルールの保存に失敗: ' + error.message); }
             else { alert('ルールを保存しました。'); }
         });
