@@ -3,42 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>判定実行 - 成績計算サイト</title>
+    <title>成績入力 - 成績計算サイト</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="supabase-client.js"></script>
     <script src="common.js"></script>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
         <nav>
-            <a href="input.html">成績入力</a>
+            <strong>成績入力</strong>
             <a href="view.html">成績参照</a>
-            <strong>判定実行</strong>
+            <a href="judge.html">判定実行</a>
             <a href="majors.html">志望学類登録</a>
             <a href="rules.html">ルール設定</a>
             <a href="account.html">アカウント管理</a>
         </nav>
         <div class="user-status">
-             <span id="user-display"></span>
-             <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
         <div class="panel">
-            <h2>判定実行</h2>
-            <p style="text-align:center;">保存されている最新の成績データと、「志望学類登録」の選択に基づき、移行点を計算します。</p>
-            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
-            <div id="results-container"></div>
+            <h2>履修科目リストの編集</h2>
+            <div class="search-section">
+                <div id="loading-status"></div>
+                <input type="text" id="search-input" placeholder="科目ライブラリから検索...">
+                <div id="search-results"></div>
+            </div>
+            <div class="table-wrapper">
+                <table id="subjects-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name">科目名</th>
+                            <th class="col-credits">単位数</th>
+                            <th class="col-grade">成績</th>
+                            <th class="col-actions">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <button id="add-row-btn" class="btn-add">手動で科目を追加</button>
+            <button id="save-btn" class="btn-main" style="width: 100%; margin-top: 20px;">現在のリストをサーバーに保存</button>
         </div>
     </div>
     <script>
+        let masterSubjects = [];
         let currentUser = null;
-        let savedSubjects = [];
-        let allPublicRules = [];
-        let targetMajors = [];
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
-        const calculateBtn = document.getElementById('calculate-btn');
-        const resultsContainer = document.getElementById('results-container');
+        const searchInput = document.getElementById('search-input');
+        const searchResultsContainer = document.getElementById('search-results');
+        const subjectsTableBody = document.querySelector('#subjects-table tbody');
+        const addRowBtn = document.getElementById('add-row-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const loadingStatus = document.getElementById('loading-status');
         
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -46,124 +66,165 @@
             currentUser = session.user;
             document.getElementById('main-app').style.display = 'block';
             userDisplay.textContent = `${currentUser.email} でログイン中`;
-            await loadInitialData();
+            await initializeApp();
         }
-        
-        async function loadInitialData() {
+
+        async function initializeApp() {
+            loadingStatus.textContent = '科目データを読み込み中...';
+            searchInput.disabled = true;
             try {
-                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
-                if (userError && userError.code !== 'PGRST116') throw userError;
-                savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
-                targetMajors = userData?.target_majors || [];
+                const response = await fetch('kdb_2025.csv');
+                const csvText = await response.text();
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const uniqueSubjects = new Map();
+                        results.data.forEach(row => {
+                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                            const credits = parseFloat(row['単位数']);
+                            if(name && !isNaN(credits)) {
+                                const key = `${name}|${credits}`;
+                                if (!uniqueSubjects.has(key)) { uniqueSubjects.set(key, { name, credits }); }
+                            }
+                        });
+                        masterSubjects = Array.from(uniqueSubjects.values());
+                    }
+                });
+                loadingStatus.textContent = '✅ 読み込み完了';
+                searchInput.disabled = false;
+                searchInput.placeholder = '科目ライブラリから検索...';
+                setTimeout(() => { loadingStatus.textContent = ''; }, 3000);
+            } catch (error) { loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`; }
+            await loadSubjects();
+        }
 
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
-                if (rulesError) throw rulesError;
-                allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
+        function createSubjectRow(subject = {}) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="text" class="subject-name" value="${subject.name || ''}" placeholder="例：力学1"></td>
+                <td><input type="number" class="subject-credits" step="0.1" value="${subject.credits || ''}" placeholder="例：2.0"></td>
+                <td><input type="number" class="subject-grade" min="0" max="100" value="${subject.grade || ''}" placeholder="例：95"></td>
+                <td><button class="btn-remove">削除</button></td>
+            `;
+            subjectsTableBody.appendChild(row);
+        }
 
-            } catch (e) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
-                calculateBtn.disabled = true;
-            }
+        function populateTable(subjects) {
+            subjectsTableBody.innerHTML = '';
+            if (subjects && subjects.length > 0) {
+                subjects.forEach(createSubjectRow);
+            } else { createSubjectRow(); }
+        }
+
+        async function loadSubjects() {
+             try {
+                const { data, error } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
+                if (error && error.code !== 'PGRST116') throw error;
+                populateTable(data ? data.subjects : []);
+            } catch (e) { populateTable([]); }
         }
 
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
-        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
-
-        // === ▼▼▼ 計算ボタンのロジックを刷新 ▼▼▼ ===
-        calculateBtn.addEventListener('click', async () => {
-            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
-            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
-            
-            calculateBtn.disabled = true;
-            calculateBtn.textContent = '計算中...';
-            resultsContainer.innerHTML = '';
-            
-            const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
-            
-            if (rulesToCalculate.length === 0) {
-                resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
-                calculateBtn.disabled = false;
-                calculateBtn.textContent = '計算を実行';
-                return;
+        addRowBtn.addEventListener('click', () => createSubjectRow());
+        subjectsTableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove')) { e.target.closest('tr').remove(); }
+        });
+        logoutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'index.html';
+        });
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.toLowerCase();
+            searchResultsContainer.innerHTML = '';
+            if (!query) return;
+            const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
+            const filtered = masterSubjects.filter(s => s.name.toLowerCase().includes(query) && !currentSubjects.includes(s.name));
+            const displayLimit = 50;
+            const itemsToDisplay = filtered.slice(0, displayLimit);
+            itemsToDisplay.forEach(subject => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `<span>${subject.name} (${subject.credits}単位)</span><button type="button" class="btn-add" data-name="${subject.name}" data-credits="${subject.credits}">追加</button>`;
+                searchResultsContainer.appendChild(item);
+            });
+            if (filtered.length > displayLimit) {
+                const moreResults = document.createElement('div');
+                moreResults.className = 'result-item';
+                moreResults.style.cssText = 'justify-content: center; color: #666;';
+                moreResults.textContent = `${displayLimit}件以上ヒット。さらに絞り込んでください。`;
+                searchResultsContainer.appendChild(moreResults);
             }
+        });
+        searchResultsContainer.addEventListener('click', (event) => {
+            if (event.target.classList.contains('btn-add')) {
+                const { name, credits } = event.target.dataset;
+                const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
+                if (currentSubjects.includes(name)) { alert('この科目は既に追加されています。'); return; }
+                createSubjectRow({ name, credits: parseFloat(credits) });
+                searchInput.value = '';
+                searchResultsContainer.innerHTML = '';
+            }
+        });
+
+        // === ▼▼▼ 保存ボタンのロジックを修正 ▼▼▼ ===
+        saveBtn.addEventListener('click', async () => {
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+
+            const subjectsRaw = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
+                name: row.querySelector('.subject-name').value.trim(),
+                credits: row.querySelector('.subject-credits').value,
+                grade: row.querySelector('.subject-grade').value
+            })).filter(s => s.name);
+            
+            const subjectsForCalc = subjectsRaw.map(s => ({
+                name: s.name,
+                credits: parseFloat(s.credits),
+                grade: parseFloat(s.grade)
+            })).filter(s => !isNaN(s.credits) && !isNaN(s.grade));
 
             try {
-                // 1. まず、計算対象となる全学類のスコアを算出
-                const scoresToUpsert = [];
-                const calculationResults = [];
+                const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
+                if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
-                rulesToCalculate.forEach(rule => {
-                    const result = calculateCustomMajor(savedSubjects, rule);
+                const { error: subjectSaveError } = await supabaseClient.from('user_data').upsert({ 
+                    id: currentUser.id, 
+                    subjects: subjectsRaw, 
+                    custom_rules: existingData ? existingData.custom_rules : [],
+                    target_majors: existingData ? existingData.target_majors : [],
+                    updated_at: new Date() 
+                });
+                if (subjectSaveError) throw subjectSaveError;
+
+                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
+                if (rulesError) throw rulesError;
+
+                const allRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
+                const scoresToUpsert = [];
+
+                allRules.forEach(rule => {
+                    const result = calculateCustomMajor(subjectsForCalc, rule);
                     scoresToUpsert.push({
-                        id: currentUser.id,
-                        user_id: currentUser.id,
+                        id: currentUser.id, // ★ ここを user_id から id に修正
                         major: rule.name,
                         score: result.score
                     });
-                    calculationResults.push({ majorName: rule.name, result: result, rule: rule });
                 });
-
-                // 2. 算出したスコアをデータベースに保存・更新
+                
                 if (scoresToUpsert.length > 0) {
                     const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
 
-                // 3. データベースへの保存が完了してから、結果を画面に表示
-                calculationResults.forEach(({ majorName, result, rule }) => {
-                    renderResultCard(majorName, result, rule);
-                });
-
+                alert('成績リストと計算済みスコアを保存しました。');
             } catch(error) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">計算またはスコア更新中にエラーが発生しました: ${error.message}</p>`;
+                alert('保存に失敗しました: ' + error.message);
             } finally {
-                calculateBtn.disabled = false;
-                calculateBtn.textContent = '計算を実行';
+                saveBtn.disabled = false;
+                saveBtn.textContent = '現在のリストをサーバーに保存';
             }
         });
-        
-        async function renderResultCard(majorName, result, rule) {
-            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
-            let judgment = 'N/A', judgmentClass = 'judgment-E';
-            if (rule.passThreshold && rule.medianThreshold) {
-                const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
-                const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
-                if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
-                else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
-                else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
-                else if (percentage >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
-                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
-            }
-            
-            const card = document.createElement('div');
-            card.className = `result-card`;
-            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
-            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
-            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
-            card.innerHTML = `
-                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
-                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
-                <div class="details-display">
-                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
-                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
-                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
-                </div>
-                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
-            `;
-            resultsContainer.appendChild(card);
-            try {
-                const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
-                if (error) throw new Error(error.message);
-                if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
-                const rankData = data[0];
-                document.getElementById(`rank-${safeMajorName}`).innerHTML = `
-                    <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
-                    <div class="detail-item" style="border-bottom: none;"><span class="label">順位</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
-                `;
-            } catch (error) {
-                document.getElementById(`rank-${safeMajorName}`).innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
-            }
-        }
     </script>
 </body>
 </html>
