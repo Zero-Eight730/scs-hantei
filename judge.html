@@ -24,179 +24,145 @@
              <span id="user-display"></span>
              <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
-        <div class="panel">
-            <h2>判定実行</h2>
-            <p style="text-align:center;">「志望学類登録」で選択した学類の移行点を計算します。</p>
-            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
-            <div id="results-container"></div>
-        </div>
-    </div>
-    <script>
-        let currentUser = null;
-        let savedSubjects = [];
-        let allPublicRules = [];
-        let targetMajors = [];
-        let rankingSettings = {}; 
-        
-        const userDisplay = document.getElementById('user-display');
-        const logoutBtn = document.getElementById('logout-btn');
-        const calculateBtn = document.getElementById('calculate-btn');
-        const resultsContainer = document.getElementById('results-container');
-        
-        async function setupUserInterface() {
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
-                    window.location.href = 'index.html';
-                }
-                return null;
-            }
-            const user = session.user;
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
-            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
-            const isAdmin = profile && profile.role === 'admin';
-            
-            document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) {
-                    link.style.display = 'inline-block';
-                }
-            });
-            return { user, isAdmin };
-        }
-        
-        async function loadInitialData() {
-            try {
-                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
-                if (userError && userError.code !== 'PGRST116') throw userError;
-                savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
-                targetMajors = userData?.target_majors || [];
+        <div class="panel">
+            <h2>判定実行</h2>
+            <p style="text-align:center;">「志望学類登録」で選択した学類の移行点を計算します。</p>
+            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
+            <div id="results-container"></div>
+        </div>
+    </div>
+    <script>
+        let currentUser = null;
+        let savedSubjects = [];
+        let allPublicRules = [];
+        let targetMajors = [];
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const calculateBtn = document.getElementById('calculate-btn');
+        const resultsContainer = document.getElementById('results-container');
+        
+        async function setupUserInterface() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) {
+                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
+                    window.location.href = 'index.html';
+                }
+                return null;
+            }
+            const user = session.user;
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
+            const isAdmin = profile && profile.role === 'admin';
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
+            });
+            return { user, isAdmin };
+        }
+        
+        async function loadInitialData() {
+            try {
+                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
+                if (userError && userError.code !== 'PGRST116') throw userError;
+                savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
+                targetMajors = userData?.target_majors || [];
+                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
+                if (rulesError) throw rulesError;
+                allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
+            } catch (e) {
+                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
+                calculateBtn.disabled = true;
+            }
+        }
 
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, rule_data');
-                if (rulesError) throw rulesError;
-                allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name }));
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sessionInfo = await setupUserInterface();
+            if (sessionInfo) {
+                currentUser = sessionInfo.user;
+                await loadInitialData();
+            }
+        });
+        
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
-                const { data: settingsData, error: settingsError } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
-                if (settingsError) throw settingsError;
-                rankingSettings = settingsData.settings;
+        calculateBtn.addEventListener('click', async () => {
+            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
+            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
+            calculateBtn.disabled = true;
+            calculateBtn.textContent = '計算・スコア更新中...';
+            resultsContainer.innerHTML = '';
+            
+            // スコアを更新
+            const scoresToUpsert = [];
+            allPublicRules.forEach(rule => {
+                const result = calculateCustomMajor(savedSubjects, rule);
+                scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
+            });
+            if (scoresToUpsert.length > 0) {
+                const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                if (scoreSaveError) {
+                    alert("スコアの更新に失敗しました: " + scoreSaveError.message);
+                    calculateBtn.disabled = false;
+                    calculateBtn.textContent = '計算を実行';
+                    return;
+                }
+            }
 
-            } catch (e) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
-                calculateBtn.disabled = true;
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const sessionInfo = await setupUserInterface();
-            if (sessionInfo) {
-                currentUser = sessionInfo.user;
-                await loadInitialData();
-            }
-        });
-
-        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
-
-        calculateBtn.addEventListener('click', async () => {
-            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
-            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
-            
-            calculateBtn.disabled = true;
-            calculateBtn.textContent = '計算・スコア更新中...';
-            resultsContainer.innerHTML = '';
-            
-            try {
-                const scoresToUpsert = [];
-                allPublicRules.forEach(rule => {
-                    const result = calculateCustomMajor(savedSubjects, rule);
-                    scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
-                });
-
-                if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
-                    if (scoreSaveError) throw scoreSaveError;
-                }
-
-                const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
-                if (rulesToCalculate.length === 0) {
-                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
-                } else {
-                    rulesToCalculate.forEach(rule => {
-                        const result = calculateCustomMajor(savedSubjects, rule);
-                        renderResultCard(rule.name, result, rule);
-                    });
-                }
-            } catch(error) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">計算またはスコア更新中にエラーが発生しました: ${error.message}</p>`;
-            } finally {
-                calculateBtn.disabled = false;
-                calculateBtn.textContent = '計算を実行';
-            }
-        });
-        
-        async function renderResultCard(majorName, result, rule) {
-            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
-            let judgmentHTML = '';
-            let rankInfoHTML = '';
-            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
-            
-            const now = new Date();
-            const startTime = rankingSettings.ranking_start_time ? new Date(rankingSettings.ranking_start_time) : null;
-            const endTime = rankingSettings.ranking_end_time ? new Date(rankingSettings.ranking_end_time) : null;
-            const isTimeValid = (!startTime || now >= startTime) && (!endTime || now <= endTime);
-            
-            if (rankingSettings.ranking_enabled && isTimeValid) {
-                // 判定とランキングを両方表示する場合
-                let judgment = 'N/A';
-                if (rule.passThreshold && rule.medianThreshold) {
-                    const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
-                    const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
-                    if (percentage >= p_plus_thresh) { judgment = 'A'; } 
-                    else if (percentage >= b_thresh) { judgment = 'B'; } 
-                    else if (percentage >= p_thresh) { judgment = 'C'; } 
-                    else if (percentage >= d_thresh) { judgment = 'D'; } 
-                    else { judgment = 'E'; }
-                }
-                judgmentHTML = `<div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>`;
-
-                try {
-                    const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
-                    if (error) throw new Error(error.message);
-                    if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
-                    const rankData = data[0];
-                    rankInfoHTML = `
-                        <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
-                        <div class="detail-item" style="border-bottom: none;"><span class="label">順位</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
-                    `;
-                } catch (error) {
-                    rankInfoHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
-                }
-            } else {
-                // 判定もランキングも非公開の場合
-                judgmentHTML = `<div class="judgment-display"><p style="font-size: 0.9em; color: var(--text-muted);">判定は現在非公開です</p></div>`;
-                rankInfoHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">ランキングは現在非公開です</p>`;
-            }
-            
-            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
-            
-            const card = document.createElement('div');
-            card.className = `result-card`;
-            if (rankingSettings.ranking_enabled && isTimeValid) {
-                card.style.borderTopColor = `var(--grade-${judgment}-color)`;
-            }
-            
-            card.innerHTML = `
-                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
-                ${judgmentHTML}
-                <div class="details-display">
-                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
-                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
-                    <div class="rank-info" id="rank-${safeMajorName}">${rankInfoHTML}</div>
-                </div>
-                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
-            `;
-            resultsContainer.appendChild(card);
-        }
-    </script>
+            const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
+            if (rulesToCalculate.length === 0) {
+                resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
+            } else {
+                rulesToCalculate.forEach(rule => {
+                    const result = calculateCustomMajor(savedSubjects, rule);
+                    renderResultCard(rule.name, result, rule);
+                });
+            }
+            calculateBtn.disabled = false;
+            calculateBtn.textContent = '計算を実行';
+        });
+        
+        async function renderResultCard(majorName, result, rule) {
+            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+            let judgment = 'N/A', judgmentClass = 'judgment-E';
+            if (rule.passThreshold && rule.medianThreshold) {
+                const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
+                const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
+                if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
+                else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
+                else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
+                else if (percentage >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
+                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
+            }
+            const card = document.createElement('div');
+            card.className = `result-card`;
+            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
+            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
+            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
+            card.innerHTML = `
+                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
+                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
+                <div class="details-display">
+                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
+                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
+                </div>
+                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
+            `;
+            resultsContainer.appendChild(card);
+            try {
+                const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
+                if (error) throw new Error(error.message);
+                if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
+                const rankData = data[0];
+                document.getElementById(`rank-${safeMajorName}`).innerHTML = `
+                    <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
+                    <div class="detail-item" style="border-bottom: none;"><span class="label">順位</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
+                `;
+            } catch (error) {
+                document.getElementById(`rank-${safeMajorName}`).innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
+            }
+        }
+    </script>
 </body>
 </html>
