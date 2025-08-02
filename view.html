@@ -2,23 +2,76 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>成績参照</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成績参照 - 成績計算サイト</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
+        <nav>
+            <a href="/input.html">成績入力</a>
+            <strong>成績参照</strong>
+            <a href="/judge.html">判定実行</a>
+        </nav>
+        <div class="user-status">
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
+        <div class="panel">
+            <h2>保存済み科目リスト</h2>
+            <div class="table-wrapper">
+                <table id="view-table">
+                    <thead><tr><th>科目名</th><th>単位数</th><th>成績</th></tr></thead>
+                    <tbody><tr><td colspan="3" style="text-align:center;">データを読み込み中...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            // ... 認証チェック ...
-            const { data, error } = await supabase
-                .from('user_data')
-                .select('subjects')
-                .eq('id', currentUser.id)
-                .single();
-            // ... 取得したdata.subjectsでテーブルを表示 ...
+        let currentUser = null;
+        async function checkSessionAndLoad() {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error || !session) {
+                window.location.href = '/login.html';
+                return;
+            }
+            currentUser = session.user;
+            document.getElementById('main-app').style.display = 'block';
+            document.getElementById('user-display').textContent = `${currentUser.email} でログイン中`;
+            await loadAndDisplayGrades();
+        }
+
+        async function loadAndDisplayGrades() {
+            const tableBody = document.querySelector('#view-table tbody');
+            try {
+                const { data, error } = await supabase
+                    .from('user_data')
+                    .select('subjects')
+                    .eq('id', currentUser.id)
+                    .single();
+                
+                if (error && error.code !== 'PGRST116') throw new Error('データが見つかりません。入力ページで成績を保存してください。');
+                
+                const subjects = data ? data.subjects : [];
+                tableBody.innerHTML = '';
+                if (subjects.length > 0) {
+                    subjects.forEach(s => {
+                        const row = tableBody.insertRow();
+                        row.innerHTML = `<td>${s.name || ''}</td><td>${s.credits || ''}</td><td>${s.grade || ''}</td>`;
+                    });
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">保存されている科目がありません。</td></tr>';
+                }
+            } catch (e) {
+                tableBody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${e.message}</td></tr>`;
+            }
+        }
+        document.addEventListener('DOMContentLoaded', checkSessionAndLoad);
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            window.location.href = '/login.html';
         });
     </script>
 </body>
