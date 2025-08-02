@@ -13,8 +13,9 @@
         <nav>
             <a href="input.html">成績入力</a>
             <a href="view.html">成績参照</a>
-            <strong>志望学類登録</strong>
             <a href="judge.html">判定実行</a>
+            <strong>志望学類登録</strong>
+            <a href="rules.html">ルール設定</a>
             <a href="account.html">アカウント管理</a>
         </nav>
         <div class="user-status">
@@ -23,20 +24,21 @@
         </div>
         <div class="panel">
             <h2>志望学類登録</h2>
-            <p style="text-align:center;">判定ページに表示したい学類をすべて選択し、保存してください。</p>
+            <p style="text-align:center;">「ルール設定」で作成した学類の中から、判定ページに表示したいものを選択してください。</p>
             <div id="majors-checkbox-container" class="major-selection-grid">
-                </div>
+                <p style="text-align:center; color: #666;">ルールを読み込み中...</p>
+            </div>
             <button id="save-btn" class="btn-main" style="width: 100%; margin-top: 20px;">選択を保存</button>
         </div>
     </div>
+
     <script>
         let currentUser = null;
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const majorsCheckboxContainer = document.getElementById('majors-checkbox-container');
         const saveBtn = document.getElementById('save-btn');
-        const allMajors = ['情報科学類（区分A）', '情報科学類（区分B）', '情報メディア創成学類', '知識情報・図書館学類', '物理学類'];
-
+        
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
@@ -50,41 +52,36 @@
         }
 
         async function initializeApp() {
-            // チェックボックスを描画
-            allMajors.forEach(major => {
-                const id = `major-${major}`;
-                const div = document.createElement('div');
-                div.innerHTML = `<input type="checkbox" class="major-checkbox" id="${id}" value="${major}"><label for="${id}">${major}</label>`;
-                majorsCheckboxContainer.appendChild(div.firstElementChild);
-                majorsCheckboxContainer.appendChild(div.lastElementChild);
-            });
-            // 保存済みの選択を読み込む
-            await loadTargetMajors();
-        }
-
-        async function loadTargetMajors() {
             try {
-                const { data, error } = await supabaseClient
-                    .from('user_data')
-                    .select('target_majors')
-                    .eq('id', currentUser.id)
-                    .single();
+                const { data, error } = await supabaseClient.from('user_data').select('custom_rules, target_majors').eq('id', currentUser.id).single();
                 if (error && error.code !== 'PGRST116') throw error;
                 
-                if (data && data.target_majors) {
-                    data.target_majors.forEach(majorName => {
-                        const checkbox = document.querySelector(`.major-checkbox[value="${majorName}"]`);
-                        if (checkbox) {
-                            checkbox.checked = true;
-                        }
-                    });
+                const customRules = data?.custom_rules || [];
+                const targetMajors = data?.target_majors || [];
+                
+                majorsCheckboxContainer.innerHTML = '';
+                if (customRules.length === 0) {
+                    majorsCheckboxContainer.innerHTML = '<p style="text-align:center; color: #666;">「ルール設定」ページで、先にカスタム学類を作成してください。</p>';
+                    saveBtn.disabled = true;
+                    return;
                 }
+
+                customRules.forEach(rule => {
+                    const id = `major-${rule.name.replace(/\s/g, '-')}`;
+                    const isChecked = targetMajors.includes(rule.name);
+                    const div = document.createElement('div');
+                    div.innerHTML = `<input type="checkbox" class="major-checkbox" id="${id}" value="${rule.name}" ${isChecked ? 'checked' : ''}><label for="${id}">${rule.name}</label>`;
+                    majorsCheckboxContainer.appendChild(div);
+                });
+
             } catch (e) {
-                console.error('志望学類の読み込みに失敗:', e);
+                majorsCheckboxContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">データの読み込みに失敗しました。</p>`;
+                console.error('カスタムルール等の読み込み失敗:', e);
             }
         }
 
         document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
+
         logoutBtn.addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             window.location.href = 'index.html';
@@ -93,10 +90,18 @@
         saveBtn.addEventListener('click', async () => {
             const selectedMajors = Array.from(document.querySelectorAll('.major-checkbox:checked'))
                 .map(checkbox => checkbox.value);
+            
+            const { data: existingData } = await supabaseClient.from('user_data').select('subjects, custom_rules').eq('id', currentUser.id).single();
 
-            const { data, error } = await supabaseClient
-                .from('user_data')
-                .upsert({ id: currentUser.id, target_majors: selectedMajors, updated_at: new Date() });
+            const updatedData = { 
+                id: currentUser.id, 
+                subjects: existingData ? existingData.subjects : [],
+                custom_rules: existingData ? existingData.custom_rules : [],
+                target_majors: selectedMajors, 
+                updated_at: new Date()
+            };
+
+            const { error } = await supabaseClient.from('user_data').upsert(updatedData);
 
             if (error) {
                 alert('保存に失敗しました: ' + error.message);
