@@ -162,10 +162,17 @@ th {
     background-color: var(--primary-color);
     color: white;
 }
+
+/* ▼▼▼ テーブルの列幅をPC向けに設定 ▼▼▼ */
+#subjects-table {
+    table-layout: fixed;
+}
 #subjects-table .col-name { width: 55%; }
 #subjects-table .col-credits { width: 15%; }
 #subjects-table .col-grade { width: 15%; }
 #subjects-table .col-actions { width: 15%; }
+/* ▲▲▲ ここまで ▲▲▲ */
+
 tr:nth-child(even) {
     background-color: #f8f9fa;
 }
@@ -304,6 +311,7 @@ tr:nth-child(even) {
     display: none;
 }
 
+/* --- ▼▼▼ スマートフォン向けスタイル（レスポンシブ対応） ▼▼▼ --- */
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
@@ -315,8 +323,8 @@ tr:nth-child(even) {
     .result-card .score { font-size: 1.2em; }
     .result-card ul { column-count: 1; }
     td, th { font-size: 0.9em; padding: 8px; }
-    table { table-layout: auto; } /* テーブルの幅を自動調整 */
-    #subjects-table .col-name { width: auto; }
-    #subjects-table .col-credits, #subjects-table .col-grade, #subjects-table .col-actions { width: 80px; }
+    
+    /* テーブルのレイアウトを自動調整に変更し、入力欄の幅を100%にする */
+    #subjects-table { table-layout: auto; } 
     .subject-credits, .subject-grade { width: 100%; }
 }
