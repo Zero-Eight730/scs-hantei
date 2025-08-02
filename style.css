@@ -322,7 +322,9 @@ tr:nth-child(even) {
     
     /* スマホ向けにカードのレイアウトを調整 */
     .result-card {
-        grid-template-columns: 90px 1fr;
+        max-width: 100%; /* 親要素の幅を超えないようにする */
+        width: 100%;
+        box-sizing: border-box; /* パディングとボーダーを幅に含める */
     }
     .judgment-circle {
         width: 70px;
