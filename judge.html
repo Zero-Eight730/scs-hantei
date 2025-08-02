@@ -92,13 +92,14 @@
             calculateBtn.textContent = '計算・スコア更新中...';
             resultsContainer.innerHTML = '';
             
+            // スコアを更新
             const scoresToUpsert = [];
             allPublicRules.forEach(rule => {
                 const result = calculateCustomMajor(savedSubjects, rule);
                 scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
             });
             if (scoresToUpsert.length > 0) {
-                const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
+                const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
                 if (scoreSaveError) {
                     alert("スコアの更新に失敗しました: " + scoreSaveError.message);
                     calculateBtn.disabled = false;
