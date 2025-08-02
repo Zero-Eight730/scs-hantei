@@ -37,6 +37,7 @@
         let currentUser = null;
         let masterSubjects = [];
         let majorRules = [];
+
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
@@ -119,8 +120,9 @@
             majorDiv.dataset.majorId = rule.id || `new-${majorIndex}`;
             let groupsHTML = '';
             (rule.groups || []).forEach((group) => {
-                groupsHTML += createGroupHTML(group, isOwner);
+                groupsHTML += createGroupHTML(group, true); // Admin can always edit
             });
+            
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
             let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
             for (const [roleKey, roleName] of Object.entries(roles)) {
@@ -134,6 +136,7 @@
                     <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
                     <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>
                 </div>
+                <p style="font-size:0.8em; color:#666; text-align:right; margin:0;">作成者: ${rule.userId === currentUser.id ? 'あなた' : '他の管理者'}</p>
                 ${rolesHTML}
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
@@ -148,26 +151,28 @@
             return majorDiv;
         }
         
-        function createGroupHTML(group, isOwner) {
+        function createGroupHTML(group, isEditable) {
             let subjectsHTML = '';
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
+            const disabledAttr = !isEditable ? 'disabled' : '';
             return `
                 <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
-                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み">
-                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名" ${disabledAttr}>
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み" ${disabledAttr}>
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限" ${disabledAttr}>
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
+                    ${isEditable ? `
                     <div class="subject-add-area">
                         <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
                         <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                    </div>
-                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
+                    </div>` : ''}
+                    ${isEditable ? '<button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>' : ''}
                 </div>
             `;
         }
