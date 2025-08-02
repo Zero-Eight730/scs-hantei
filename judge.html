@@ -22,7 +22,25 @@
 
         // ... DOM要素取得 ...
 
-        async function setupUserInterface() { /* ... 変更なし ... */ }
+        async function setupUserInterface() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) {
+                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
+                    window.location.href = 'index.html';
+                }
+                return null;
+            }
+            const user = session.user;
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
+            const isAdmin = profile && profile.role === 'admin';
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
+            });
+            return { user, isAdmin };
+        }
 
         async function loadInitialData() {
             try {
@@ -41,19 +59,85 @@
                 if (settingsError) throw settingsError;
                 rankingSettings = settingsData.settings;
 
-            } catch (e) { /* ... エラー処理 ... */ }
+            } catch (e) {
+                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
+                calculateBtn.disabled = true;
+            }
         }
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sessionInfo = await setupUserInterface();
+            if (sessionInfo) {
+                currentUser = sessionInfo.user;
+                await loadInitialData();
+            }
+        });
+        
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
-        // ... calculateBtn イベントリスナーは変更なし ...
+        calculateBtn.addEventListener('click', async () => {
+            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
+            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
+            calculateBtn.disabled = true;
+            calculateBtn.textContent = '計算・スコア更新中...';
+            resultsContainer.innerHTML = '';
+            
+            // スコアを更新
+            const scoresToUpsert = [];
+            allPublicRules.forEach(rule => {
+                const result = calculateCustomMajor(savedSubjects, rule);
+                scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
+            });
+            if (scoresToUpsert.length > 0) {
+                const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                if (scoreSaveError) {
+                    alert("スコアの更新に失敗しました: " + scoreSaveError.message);
+                    calculateBtn.disabled = false;
+                    calculateBtn.textContent = '計算を実行';
+                    return;
+                }
+            }
+
+            const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
+            if (rulesToCalculate.length === 0) {
+                resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
+            } else {
+                rulesToCalculate.forEach(rule => {
+                    const result = calculateCustomMajor(savedSubjects, rule);
+                    renderResultCard(rule.name, result, rule);
+                });
+            }
+            calculateBtn.disabled = false;
+            calculateBtn.textContent = '計算を実行';
+        });
         
         async function renderResultCard(majorName, result, rule) {
-            // ... 判定ロジックは変更なし ...
+            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+            let judgment = 'N/A', judgmentClass = 'judgment-E';
+            if (rule.passThreshold && rule.medianThreshold) {
+                const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
+                const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
+                if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
+                else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
+                else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
+                else if (percentage >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
+                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
+            }
             
             const card = document.createElement('div');
-            // ... カードのHTML生成 ...
+            card.className = `result-card`;
+            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
+            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
+            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
             card.innerHTML = `
-                <div class="rank-info" id="rank-${safeMajorName}"><p>...</p></div>
-                `;
+                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
+                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
+                <div class="details-display">
+                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
+                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
+                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
+                </div>
+                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
+            `;
             resultsContainer.appendChild(card);
 
             // ▼▼▼ ランキング表示の前に権限チェックを追加 ▼▼▼
