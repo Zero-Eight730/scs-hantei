@@ -325,58 +325,7 @@ tr:nth-child(even) {
     .card-header h4 { text-align: center; }
     .result-card .judgment { font-size: 3.5em; }
     .result-card .score { font-size: 1.2em; }
-    .result-card ul { column-count: 1; }
-
-/* --- ▼▼▼ ここからが修正箇所です ▼▼▼ --- */
-.judgment-display {
-    grid-area: judgment;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.judgment-circle {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 4.5em; /* 文字を大きく */
-    font-weight: 700;
-    color: var(--white);
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
-}
-.details-display {
-    grid-area: details;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-}
-.detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 5px 0;
-    border-bottom: 1px solid var(--border-color);
-}
-.detail-item:last-child {
-    border-bottom: none;
-}
-.detail-item .label { font-size: 0.9em; color: #666; }
-.detail-item .value { font-size: 1.2em; font-weight: 500; color: var(--text-dark); }
-
-.rank-info { font-size: 0.9em; color: var(--text-muted); }
-.breakdown-display { grid-area: breakdown; }
-
-.grade-A { background: var(--danger-color); }
-.grade-B { background: var(--warning-color); }
-.grade-C { background: var(--success-color); }
-.grade-D { background: var(--secondary-color); }
-.grade-E { background: var(--grade-e-color); }
-/* --- ▲▲▲ ここまで ▲▲▲ --- */
-    
+    .result-card ul { column-count: 1; }    
     td, th { font-size: 0.9em; padding: 8px; }
     
     /* 成績入力テーブルのレイアウトをスマホ用に変更 */
