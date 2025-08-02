@@ -32,6 +32,8 @@
         </div>
     </div>
 
+    <datalist id="master-subjects-list"></datalist>
+
     <script>
         let currentUser = null;
         let masterSubjects = [];
@@ -42,6 +44,7 @@
         const customMajorsContainer = document.getElementById('custom-majors-container');
         const addMajorBtn = document.getElementById('add-major-btn');
         const saveRulesBtn = document.getElementById('save-rules-btn');
+        const masterSubjectsDatalist = document.getElementById('master-subjects-list');
 
         async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -67,6 +70,14 @@
                         }
                     });
                     masterSubjects = Array.from(uniqueSubjects.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                    
+                    // オートコンプリート用のデータリストを生成
+                    masterSubjectsDatalist.innerHTML = '';
+                    masterSubjects.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject.name;
+                        masterSubjectsDatalist.appendChild(option);
+                    });
                 }});
             } catch (error) { alert('科目マスターリストの読み込みに失敗しました。'); }
             await loadCustomRules();
@@ -96,7 +107,7 @@
 
             let groupsHTML = '';
             (rule.groups || []).forEach((group, groupIndex) => {
-                groupsHTML += createGroupHTML(group, majorIndex, groupIndex);
+                groupsHTML += createGroupHTML(group);
             });
 
             majorDiv.innerHTML = `
@@ -113,26 +124,17 @@
                 <div class="groups-container">${groupsHTML}</div>
                 <button class="btn-add add-group-btn">科目グループを追加</button>
             `;
-            
-            majorDiv.querySelectorAll('.subject-select').forEach(select => {
-                masterSubjects.forEach(subject => {
-                    const option = document.createElement('option');
-                    option.value = subject.name;
-                    option.textContent = `${subject.name} (${subject.credits}単位)`;
-                    select.appendChild(option);
-                });
-            });
             return majorDiv;
         }
 
-        function createGroupHTML(group, majorIndex, groupIndex) {
+        function createGroupHTML(group) {
             let subjectsHTML = '';
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
 
             return `
-                <div class="group-box" data-group-index="${groupIndex}">
+                <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
                         <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名 (例: 重点科目)">
@@ -141,7 +143,10 @@
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
-                    <select class="subject-select"><option value="">科目を選択して追加...</option></select>
+                    <div class="subject-add-area">
+                        <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
+                        <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
+                    </div>
                     <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
                 </div>
             `;
@@ -155,55 +160,34 @@
             renderAllRules();
         });
 
-        // === ▼▼▼ イベントリスナーを修正 ▼▼▼ ===
         customMajorsContainer.addEventListener('click', (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-            const majorIndex = parseInt(ruleEditor.dataset.majorIndex);
-
+            
             if (target.classList.contains('remove-major-btn')) {
-                if (confirm(`「${customRules[majorIndex].name}」を削除しますか？`)) {
-                    customRules.splice(majorIndex, 1);
-                    renderAllRules();
+                // UIからルールを直接削除するのではなく、保存時に読み込んで反映させる
+                if (confirm(`この学類ルールを削除しますか？`)) {
+                    ruleEditor.remove();
                 }
             } else if (target.classList.contains('add-group-btn')) {
-                if (!customRules[majorIndex].groups) customRules[majorIndex].groups = [];
-                customRules[majorIndex].groups.push({ name: '新しいグループ', weight: 1.0, cap: 10, subjects: [] });
-                renderAllRules();
+                const groupsContainer = ruleEditor.querySelector('.groups-container');
+                groupsContainer.insertAdjacentHTML('beforeend', createGroupHTML({}));
             } else if (target.classList.contains('remove-group-btn')) {
-                const groupBox = target.closest('.group-box');
-                const groupIndex = parseInt(groupBox.dataset.groupIndex);
-                customRules[majorIndex].groups.splice(groupIndex, 1);
-                renderAllRules();
+                target.closest('.group-box').remove();
             } else if (target.classList.contains('remove-subject-tag')) {
-                const groupBox = target.closest('.group-box');
-                const groupIndex = parseInt(groupBox.dataset.groupIndex);
-                const subjectName = target.parentElement.textContent.slice(0, -1);
-                const subjectIndex = customRules[majorIndex].groups[groupIndex].subjects.indexOf(subjectName);
-                if (subjectIndex > -1) {
-                    customRules[majorIndex].groups[groupIndex].subjects.splice(subjectIndex, 1);
+                target.parentElement.remove();
+            } else if (target.classList.contains('add-subject-to-group-btn')) {
+                const input = target.previousElementSibling;
+                const subjectName = input.value.trim();
+                if (subjectName) {
+                    const subjectsContainer = input.closest('.group-box').querySelector('.subjects-container');
+                    const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
+                    if (!existingSubjects.includes(subjectName)) {
+                        subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
+                    }
+                    input.value = '';
                 }
-                renderAllRules();
-            }
-        });
-
-        customMajorsContainer.addEventListener('change', (e) => {
-            if (e.target.classList.contains('subject-select')) {
-                const selectedSubject = e.target.value;
-                if (!selectedSubject) return;
-                const ruleEditor = e.target.closest('.rule-editor');
-                const groupBox = e.target.closest('.group-box');
-                const majorIndex = parseInt(ruleEditor.dataset.majorIndex);
-                const groupIndex = parseInt(groupBox.dataset.groupIndex);
-                
-                if (!customRules[majorIndex].groups[groupIndex].subjects) {
-                    customRules[majorIndex].groups[groupIndex].subjects = [];
-                }
-                if (!customRules[majorIndex].groups[groupIndex].subjects.includes(selectedSubject)) {
-                    customRules[majorIndex].groups[groupIndex].subjects.push(selectedSubject);
-                }
-                renderAllRules();
             }
         });
         
@@ -226,16 +210,23 @@
                         subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
                     });
                 });
-                updatedRules.push(majorRule);
+                if (majorRule.name) {
+                    updatedRules.push(majorRule);
+                }
             });
-            customRules = updatedRules;
             
-            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('*').eq('id', currentUser.id).single();
-            if (fetchError && fetchError.code !== 'PGRST116') { alert('データの取得に失敗: ' + fetchError.message); return; }
+            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
+            if (fetchError && fetchError.code !== 'PGRST116') { alert('既存データの取得に失敗: ' + fetchError.message); return; }
             
-            const updatedData = { ...existingData, id: currentUser.id, custom_rules: customRules, updated_at: new Date() };
+            const updatedData = { 
+                id: currentUser.id, 
+                subjects: existingData ? existingData.subjects : [], 
+                custom_rules: updatedRules, 
+                updated_at: new Date() 
+            };
 
             const { data, error } = await supabaseClient.from('user_data').upsert(updatedData);
+
             if(error) { alert('ルールの保存に失敗: ' + error.message); }
             else { alert('ルールを保存しました。'); }
         });
