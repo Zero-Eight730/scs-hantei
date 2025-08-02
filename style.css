@@ -162,17 +162,13 @@ th {
     background-color: var(--primary-color);
     color: white;
 }
-
-/* ▼▼▼ テーブルの列幅をPC向けに設定 ▼▼▼ */
 #subjects-table {
-    table-layout: fixed;
+    table-layout: auto;
 }
-#subjects-table .col-name { width: 55%; }
-#subjects-table .col-credits { width: 15%; }
-#subjects-table .col-grade { width: 15%; }
-#subjects-table .col-actions { width: 15%; }
-/* ▲▲▲ ここまで ▲▲▲ */
-
+#subjects-table .col-name { width: auto; min-width: 200px; }
+#subjects-table .col-credits { width: 100px; }
+#subjects-table .col-grade { width: 100px; }
+#subjects-table .col-actions { width: 90px; }
 tr:nth-child(even) {
     background-color: #f8f9fa;
 }
@@ -230,12 +226,16 @@ tr:nth-child(even) {
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 10px;
 }
+
+/* --- ▼▼▼ ここからが修正箇所です ▼▼▼ --- */
 .result-card .judgment {
-    font-size: 3em;
-    font-weight: bold;
+    font-size: 4.5em; /* 文字を大きく */
+    font-weight: 700; /* 太字を強調 */
     text-align: center;
-    margin: 15px 0;
+    margin: 20px 0;
+    line-height: 1; /* 行の高さを調整 */
 }
+/* --- ▲▲▲ ここまでが修正箇所です ▲▲▲ --- */
 
 .judgment-A { color: var(--danger-color); }
 .judgment-B { color: var(--warning-color); }
@@ -311,7 +311,6 @@ tr:nth-child(even) {
     display: none;
 }
 
-/* --- ▼▼▼ スマートフォン向けスタイル（レスポンシブ対応） ▼▼▼ --- */
 @media (max-width: 768px) {
     body { padding: 5px; }
     .container { padding: 15px; margin: 10px auto; }
@@ -319,12 +318,13 @@ tr:nth-child(even) {
     h1 { font-size: 1.8em; }
     h2 { font-size: 1.4em; }
     nav a, nav strong { padding: 8px 12px; font-size: 0.9em; }
-    .result-card .judgment { font-size: 2.5em; }
+    
+    /* --- ▼▼▼ スマートフォン向けの判定文字サイズ調整 ▼▼▼ --- */
+    .result-card .judgment { font-size: 3.5em; }
+    /* --- ▲▲▲ ここまで ▲▲▲ --- */
+
     .result-card .score { font-size: 1.2em; }
     .result-card ul { column-count: 1; }
     td, th { font-size: 0.9em; padding: 8px; }
-    
-    /* テーブルのレイアウトを自動調整に変更し、入力欄の幅を100%にする */
-    #subjects-table { table-layout: auto; } 
     .subject-credits, .subject-grade { width: 100%; }
 }
