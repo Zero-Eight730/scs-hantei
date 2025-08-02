@@ -3,71 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン - 成績計算サイト</title>
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
-    <title>ログイン - 移行判定</title>
-    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container auth-container">
-        <h1>移行判定</h1>
+        <h1>成績計算サイト</h1>
         <div class="panel">
             <h2>ログインまたは新規登録</h2>
-            <input type="text" id="username" placeholder="ユーザー名" required>
-            <input type="password" id="password" placeholder="パスワード" required>
+            <input type="email" id="email" placeholder="メールアドレス" required>
+            <input type="password" id="password" placeholder="パスワード（6文字以上）" required>
             <div class="user-actions">
                 <button id="login-btn" class="btn-main">ログイン</button>
                 <button id="register-btn" class="btn-action">新規登録</button>
             </div>
-            <p id="auth-message" style="color: var(--danger-color); height: 20px; margin-top: 15px;"></p>
+            <p id="auth-message"></p>
         </div>
     </div>
     <script>
         const loginBtn = document.getElementById('login-btn');
         const registerBtn = document.getElementById('register-btn');
-        const usernameInput = document.getElementById('username');
+        const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const authMessage = document.getElementById('auth-message');
 
+        // ログイン状態を確認し、ログイン済みなら入力ページへ
         document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const res = await fetch('/api/session');
-                const data = await res.json();
-                if (data.loggedIn) {
-                    window.location.href = '/input.html';
-                }
-            } catch(e) { /* Do nothing, show login form */ }
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                window.location.href = '/input.html';
+            }
         });
 
         registerBtn.addEventListener('click', async () => {
-            const username = usernameInput.value.trim();
+            const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
-            if (!username || !password) { authMessage.textContent = 'ユーザー名とパスワードを入力してください。'; return; }
-            try {
-                const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-                const data = await res.json();
-                if (res.ok) {
-                    alert(data.message + ' ログインしてください。');
-                    authMessage.textContent = '';
-                } else {
-                    authMessage.textContent = data.message;
-                }
-            } catch (error) { authMessage.textContent = '登録中にエラーが発生しました。'; }
+            authMessage.textContent = '';
+            const { data, error } = await supabase.auth.signUp({
+                email: email,
+                password: password,
+            });
+            if (error) {
+                authMessage.textContent = '登録エラー: ' + error.message;
+            } else {
+                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。');
+            }
         });
 
         loginBtn.addEventListener('click', async () => {
-            const username = usernameInput.value.trim();
+            const email = emailInput.value.trim();
             const password = passwordInput.value.trim();
-            if (!username || !password) { authMessage.textContent = 'ユーザー名とパスワードを入力してください。'; return; }
-            try {
-                const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-                const data = await res.json();
-                if (res.ok) {
-                    window.location.href = '/input.html';
-                } else {
-                    authMessage.textContent = data.message;
-                }
-            } catch (error) { authMessage.textContent = 'ログイン中にエラーが発生しました。'; }
+            authMessage.textContent = '';
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
+            if (error) {
+                authMessage.textContent = 'ログインエラー: ' + error.message;
+            } else {
+                window.location.href = '/input.html';
+            }
         });
     </script>
 </body>
