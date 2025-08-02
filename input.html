@@ -11,14 +11,52 @@
 </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
+        <nav>
+            <strong>成績入力</strong>
+            <a href="/view.html">成績参照</a>
+            <a href="/judge.html">判定実行</a>
+        </nav>
+        <div class="user-status">
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
+        <div class="panel">
+            <h2>履修科目リストの編集</h2>
+            <div class="search-section">
+                <div id="loading-status"></div>
+                <input type="text" id="search-input" placeholder="科目ライブラリから検索...">
+                <div id="search-results"></div>
+            </div>
+            <div class="table-wrapper">
+                <table id="subjects-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name">科目名</th>
+                            <th class="col-credits">単位数</th>
+                            <th class="col-grade">成績</th>
+                            <th class="col-actions">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <button id="add-row-btn" class="btn-add">手動で科目を追加</button>
+            <button id="save-btn" class="btn-main" style="width: 100%; margin-top: 20px;">現在のリストをサーバーに保存</button>
+        </div>
+    </div>
     <script>
         let masterSubjects = [];
         let currentUser = null;
-        // ... DOM要素取得 ...
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const searchInput = document.getElementById('search-input');
+        const searchResultsContainer = document.getElementById('search-results');
+        const subjectsTableBody = document.querySelector('#subjects-table tbody');
+        const addRowBtn = document.getElementById('add-row-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const loadingStatus = document.getElementById('loading-status');
 
-        // 認証と初期化
-        document.addEventListener('DOMContentLoaded', async () => {
+        async function checkSessionAndInitialize() {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (error || !session) {
                 window.location.href = '/login.html';
@@ -28,25 +66,138 @@
             document.getElementById('main-app').style.display = 'block';
             userDisplay.textContent = `${currentUser.email} でログイン中`;
             await initializeApp();
-        });
-
-        async function initializeApp() {
-            // ... CSV読み込みと科目検索機能 ...
         }
 
+        async function initializeApp() {
+            loadingStatus.textContent = '科目データを読み込み中...';
+            searchInput.disabled = true;
+            try {
+                const response = await fetch('/kdb_2025.csv');
+                const csvText = await response.text();
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const uniqueSubjects = new Map();
+                        results.data.forEach(row => {
+                            const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
+                            const credits = parseFloat(row['単位数']);
+                            if(name && !isNaN(credits)) {
+                                const key = `${name}|${credits}`;
+                                if (!uniqueSubjects.has(key)) {
+                                    uniqueSubjects.set(key, { name, credits });
+                                }
+                            }
+                        });
+                        masterSubjects = Array.from(uniqueSubjects.values());
+                    }
+                });
+                loadingStatus.textContent = '✅ 読み込み完了';
+                searchInput.disabled = false;
+                searchInput.placeholder = '科目ライブラリから検索...';
+                setTimeout(() => { loadingStatus.textContent = ''; }, 3000);
+            } catch (error) {
+                loadingStatus.textContent = `❌ 科目データ(kdb_2025.csv)の読み込みに失敗`;
+            }
+            loadSubjects();
+        }
+
+        function createSubjectRow(subject = {}) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="text" class="subject-name" value="${subject.name || ''}" placeholder="例：力学1"></td>
+                <td><input type="number" class="subject-credits" step="0.1" value="${subject.credits || ''}" placeholder="例：2.0"></td>
+                <td><input type="number" class="subject-grade" min="0" max="100" value="${subject.grade || ''}" placeholder="例：95"></td>
+                <td><button class="btn-remove">削除</button></td>
+            `;
+            subjectsTableBody.appendChild(row);
+        }
+
+        function populateTable(subjects) {
+            subjectsTableBody.innerHTML = '';
+            if (subjects && subjects.length > 0) {
+                subjects.forEach(createSubjectRow);
+            } else {
+                createSubjectRow();
+            }
+        }
+
+        async function loadSubjects() {
+             try {
+                const { data, error } = await supabase
+                    .from('user_data')
+                    .select('subjects')
+                    .eq('id', currentUser.id)
+                    .single();
+                if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "No rows found"
+                populateTable(data ? data.subjects : []);
+            } catch (e) {
+                populateTable([]);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', checkSessionAndInitialize);
+        addRowBtn.addEventListener('click', () => createSubjectRow());
+        subjectsTableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove')) { e.target.closest('tr').remove(); }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            window.location.href = '/login.html';
+        });
+
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.toLowerCase();
+            searchResultsContainer.innerHTML = '';
+            if (!query) return;
+            const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
+            const filtered = masterSubjects.filter(s => s.name.toLowerCase().includes(query) && !currentSubjects.includes(s.name));
+            const displayLimit = 50;
+            const itemsToDisplay = filtered.slice(0, displayLimit);
+            itemsToDisplay.forEach(subject => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `<span>${subject.name} (${subject.credits}単位)</span><button type="button" class="btn-add" data-name="${subject.name}" data-credits="${subject.credits}">追加</button>`;
+                searchResultsContainer.appendChild(item);
+            });
+            if (filtered.length > displayLimit) {
+                const moreResults = document.createElement('div');
+                moreResults.className = 'result-item';
+                moreResults.style.cssText = 'justify-content: center; color: #666;';
+                moreResults.textContent = `${displayLimit}件以上ヒット。さらに絞り込んでください。`;
+                searchResultsContainer.appendChild(moreResults);
+            }
+        });
+
+        searchResultsContainer.addEventListener('click', (event) => {
+            if (event.target.classList.contains('btn-add')) {
+                const { name, credits } = event.target.dataset;
+                const currentSubjects = Array.from(subjectsTableBody.querySelectorAll('.subject-name')).map(input => input.value);
+                if (currentSubjects.includes(name)) { alert('この科目は既に追加されています。'); return; }
+                createSubjectRow({ name, credits: parseFloat(credits) });
+                searchInput.value = '';
+                searchResultsContainer.innerHTML = '';
+            }
+        });
+
         saveBtn.addEventListener('click', async () => {
-            // ... 科目リストを取得 ...
+            const subjects = Array.from(subjectsTableBody.querySelectorAll('tr')).map(row => ({
+                name: row.querySelector('.subject-name').value.trim(),
+                credits: row.querySelector('.subject-credits').value,
+                grade: row.querySelector('.subject-grade').value
+            })).filter(s => s.name);
+            
             const { data, error } = await supabase
                 .from('user_data')
                 .upsert({ id: currentUser.id, subjects: subjects });
+
             if (error) {
                 alert('保存に失敗しました: ' + error.message);
             } else {
                 alert('保存しました。');
             }
         });
-        
-        // ... 他のJavaScript ...
     </script>
 </body>
 </html>
