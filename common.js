@@ -1,3 +1,5 @@
+// public/common.js
+
 function normalizeName(name) {
     if (typeof name !== 'string') return '';
     return name.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, '');
@@ -16,7 +18,7 @@ function calculateCustomMajor(subjects, rule) {
         groupSubjects.sort((a, b) => b.grade - a.grade);
         let groupCredits = 0;
         groupSubjects.forEach(subject => {
-            if (groupCredits + subject.credits <= group.cap) {
+            if (group.cap === 0 || groupCredits + subject.credits <= group.cap) {
                 groupCredits += subject.credits;
                 totalScore += subject.grade * subject.credits * group.weight;
                 maxScore += 100 * subject.credits * group.weight;
@@ -32,7 +34,7 @@ function calculateCustomMajor(subjects, rule) {
     remainingSubjects.sort((a, b) => b.efficiency - a.efficiency);
 
     for (const subject of remainingSubjects) {
-        if (totalCredits + subject.credits <= rule.totalCap) {
+        if (rule.totalCap === 0 || totalCredits + subject.credits <= rule.totalCap) {
             totalCredits += subject.credits;
             totalScore += subject.grade * subject.credits * rule.otherWeight;
             maxScore += 100 * subject.credits * rule.otherWeight;
@@ -41,7 +43,6 @@ function calculateCustomMajor(subjects, rule) {
         }
     }
     
-    // Add non-included subjects to breakdown for clarity
     const allInitialSubjects = JSON.parse(JSON.stringify(subjects));
     allInitialSubjects.forEach(s => {
         if (!includedNames.has(s.name)) {
