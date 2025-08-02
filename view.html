@@ -49,7 +49,7 @@
                 if (error && error.code !== 'PGRST116') throw new Error('データが見つかりません。入力ページで成績を保存してください。');
                 const subjects = data ? data.subjects : [];
                 tableBody.innerHTML = '';
-                if (subjects.length > 0) {
+                if (subjects.length > 0 && subjects.some(s => s.name)) {
                     subjects.forEach(s => {
                         const row = tableBody.insertRow();
                         row.innerHTML = `<td>${s.name || ''}</td><td>${s.credits || ''}</td><td>${s.grade || ''}</td>`;
