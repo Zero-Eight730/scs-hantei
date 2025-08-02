@@ -81,9 +81,9 @@
 
         async function loadMajorRules() {
             try {
-                const { data, error } = await supabaseClient.from('major_rules').select('*, rule_data:rule_data(*)');
+                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, rule_data');
                 if (error) throw error;
-                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, ...r.rule_data, name: r.name }));
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, ...r.rule_data }));
                 renderAllRules();
             } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
@@ -102,19 +102,19 @@
             majorDiv.className = 'rule-editor';
             majorDiv.dataset.majorId = rule.id || `new-${majorIndex}`;
             let groupsHTML = '';
-            (rule.groups || []).forEach((group) => {
+            (rule.groups || []).forEach((group, groupIndex) => {
                 groupsHTML += createGroupHTML(group, isOwner);
             });
             majorDiv.innerHTML = `
                 <div class="rule-editor-header">
                     <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" ${!isOwner && rule.id ? 'disabled' : ''} style="font-size: 1.2em; font-weight: bold;">
-                    ${isOwner ? `<button class="btn-danger remove-major-btn" data-id="${rule.id}">この学類を削除</button>` : ''}
+                    ${isOwner ? `<button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>` : ''}
                 </div>
                 <div class="rule-settings-grid">
-                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限" ${!isOwner ? 'disabled' : ''}>
-                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み" ${!isOwner ? 'disabled' : ''}>
-                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)" ${!isOwner ? 'disabled' : ''}>
-                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)" ${!isOwner ? 'disabled' : ''}>
+                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限" ${!isOwner && rule.id ? 'disabled' : ''}>
+                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み" ${!isOwner && rule.id ? 'disabled' : ''}>
+                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)" ${!isOwner && rule.id ? 'disabled' : ''}>
+                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)" ${!isOwner && rule.id ? 'disabled' : ''}>
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
                 ${isOwner || !rule.id ? '<button class="btn-add add-group-btn">科目グループを追加</button>' : ''}
@@ -128,13 +128,14 @@
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
+            const disabledAttr = !isOwner ? 'disabled' : '';
             return `
                 <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名" ${!isOwner ? 'disabled' : ''}>
-                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み" ${!isOwner ? 'disabled' : ''}>
-                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限" ${!isOwner ? 'disabled' : ''}>
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名" ${disabledAttr}>
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み" ${disabledAttr}>
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限" ${disabledAttr}>
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
@@ -164,10 +165,7 @@
 
             if (target.classList.contains('remove-major-btn')) {
                 const ruleId = target.dataset.id;
-                if (!ruleId) { // 新しく追加されたばかりの要素
-                    ruleEditor.remove();
-                    return;
-                }
+                if (!ruleId) { ruleEditor.remove(); return; }
                 const ruleName = ruleEditor.querySelector('.major-name').value;
                 if (confirm(`「${ruleName}」を完全に削除しますか？この操作は元に戻せません。`)) {
                     const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
@@ -193,7 +191,7 @@
                     input.value = '';
                 }
             } else if (target.classList.contains('save-one-rule-btn')) {
-                const ruleId = target.dataset.id;
+                const ruleId = target.dataset.id; // 新規の場合は "" (空文字列)
                 const ruleData = {
                     name: ruleEditor.querySelector('.major-name').value.trim(),
                     rule_data: {
@@ -212,13 +210,16 @@
                 if (!ruleData.name) { alert('学類名は必須です。'); return; }
 
                 let query;
-                if (ruleId) {
+                // ▼▼▼ ここからが修正箇所です ▼▼▼
+                if (ruleId && ruleId !== 'undefined' && ruleId !== '') {
                     // 既存ルールの更新
                     query = supabaseClient.from('major_rules').update(ruleData).eq('id', ruleId);
                 } else {
                     // 新規ルールの挿入
                     query = supabaseClient.from('major_rules').insert({ ...ruleData, user_id: currentUser.id });
                 }
+                // ▲▲▲ ここまでが修正箇所です ▲▲▲
+
                 const { error } = await query;
                 if (error) { alert('保存に失敗: ' + error.message); }
                 else { alert(`「${ruleData.name}」を保存しました。`); await loadMajorRules(); }
