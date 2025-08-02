@@ -15,6 +15,7 @@
             <a href="input.html">成績入力</a>
             <a href="view.html">成績参照</a>
             <a href="judge.html">判定実行</a>
+            <a href="majors.html">志望学類登録</a>
             <strong>ルール設定</strong>
             <a href="account.html">アカウント管理</a>
         </nav>
@@ -62,7 +63,7 @@
                 Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
                     const uniqueSubjects = new Map();
                     results.data.forEach(row => {
-                        const name = row['科目名'] ? row['科目名'].trim() : '';
+                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                         const credits = parseFloat(row['単位数']);
                         if(name && !isNaN(credits)) {
                             const key = `${name}|${credits}`;
@@ -71,7 +72,6 @@
                     });
                     masterSubjects = Array.from(uniqueSubjects.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
                     
-                    // オートコンプリート用のデータリストを生成
                     masterSubjectsDatalist.innerHTML = '';
                     masterSubjects.forEach(subject => {
                         const option = document.createElement('option');
@@ -107,7 +107,7 @@
 
             let groupsHTML = '';
             (rule.groups || []).forEach((group, groupIndex) => {
-                groupsHTML += createGroupHTML(group);
+                groupsHTML += createGroupHTML(group, groupIndex);
             });
 
             majorDiv.innerHTML = `
@@ -166,8 +166,7 @@
             if (!ruleEditor) return;
             
             if (target.classList.contains('remove-major-btn')) {
-                // UIからルールを直接削除するのではなく、保存時に読み込んで反映させる
-                if (confirm(`この学類ルールを削除しますか？`)) {
+                if (confirm(`この学類ルールを削除しますか？\n（「すべてのルールを保存」を押すまで確定されません）`)) {
                     ruleEditor.remove();
                 }
             } else if (target.classList.contains('add-group-btn')) {
@@ -195,7 +194,7 @@
             const updatedRules = [];
             document.querySelectorAll('.rule-editor').forEach(majorEl => {
                 const majorRule = {
-                    name: majorEl.querySelector('.major-name').value,
+                    name: majorEl.querySelector('.major-name').value.trim(),
                     totalCap: parseFloat(majorEl.querySelector('.total-cap').value) || 0,
                     otherWeight: parseFloat(majorEl.querySelector('.other-weight').value) || 0,
                     passThreshold: parseFloat(majorEl.querySelector('.pass-threshold').value) || 0,
@@ -204,7 +203,7 @@
                 };
                 majorEl.querySelectorAll('.group-box').forEach(groupEl => {
                     majorRule.groups.push({
-                        name: groupEl.querySelector('.group-name').value,
+                        name: groupEl.querySelector('.group-name').value.trim(),
                         weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
                         cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
                         subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
@@ -215,20 +214,24 @@
                 }
             });
             
-            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects').eq('id', currentUser.id).single();
+            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
             if (fetchError && fetchError.code !== 'PGRST116') { alert('既存データの取得に失敗: ' + fetchError.message); return; }
             
             const updatedData = { 
                 id: currentUser.id, 
-                subjects: existingData ? existingData.subjects : [], 
+                subjects: existingData ? existingData.subjects : [],
+                target_majors: existingData ? existingData.target_majors : [],
                 custom_rules: updatedRules, 
                 updated_at: new Date() 
             };
 
             const { data, error } = await supabaseClient.from('user_data').upsert(updatedData);
-
             if(error) { alert('ルールの保存に失敗: ' + error.message); }
-            else { alert('ルールを保存しました。'); }
+            else { 
+                alert('ルールを保存しました。');
+                customRules = updatedRules;
+                renderAllRules();
+            }
         });
     </script>
 </body>
