@@ -70,12 +70,15 @@
                 if (userError && userError.code !== 'PGRST116') throw userError;
                 savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
                 targetMajors = userData?.target_majors || [];
+
                 const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data');
                 if (rulesError) throw rulesError;
                 allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name, allowed_roles: r.allowed_roles }));
+
                 const { data: settingsData, error: settingsError } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
                 if (settingsError) throw settingsError;
                 rankingSettings = settingsData.settings;
+
             } catch (e) {
                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
                 calculateBtn.disabled = true;
@@ -96,6 +99,7 @@
         calculateBtn.addEventListener('click', async () => {
             if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
             if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
+            
             calculateBtn.disabled = true;
             calculateBtn.textContent = '計算・スコア更新中...';
             resultsContainer.innerHTML = '';
@@ -106,13 +110,15 @@
                     const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                     scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
                 });
+
                 if (scoresToUpsert.length > 0) {
                     const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
                     if (scoreSaveError) throw scoreSaveError;
                 }
+
                 const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
                 if (rulesToCalculate.length === 0) {
-                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。</p>`;
+                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
                 } else {
                     rulesToCalculate.forEach(rule => {
                         const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
