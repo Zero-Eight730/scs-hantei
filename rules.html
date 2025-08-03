@@ -47,14 +47,27 @@
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'index.html'; return null; }
+            if (error || !session) {
+                window.location.href = 'index.html';
+                return null;
+            }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
-            document.getElementById('main-app').style.display = 'block';
-            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
+            
+            if (!isAdmin) {
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return null;
+            }
+
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
+            });
             return { user, isAdmin };
         }
 
@@ -103,7 +116,10 @@
             majorDetails.className = 'rule-editor';
             majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
             majorDetails.draggable = true;
-            const editorHTML = createEditorHTML(rule);
+
+            const isTiered = rule.type === 'tiered';
+            let specificEditorHTML = isTiered ? createTieredEditorHTML(rule) : createStandardEditorHTML(rule);
+
             majorDetails.innerHTML = `
                 <summary>
                     <span class="drag-handle">⠿</span>
@@ -112,15 +128,63 @@
                 <div class="rule-editor-content">
                     <div class="rule-editor-header">
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
+                        <select class="rule-type-select">
+                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (個別指定)</option>
+                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (重み2/1/超過)</option>
+                        </select>
                         <button class="btn-action duplicate-major-btn">複製</button>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
-                    <div class="editor-content-wrapper">${editorHTML}</div>
+                    <div class="editor-content-wrapper">${specificEditorHTML}</div>
                 </div>
             `;
             return majorDetails;
         }
 
+        function createStandardEditorHTML(rule) {
+            let groupsHTML = (rule.groups || []).map(createGroupHTML).join('');
+            let combinedLimitsHTML = (rule.combinedLimits || []).map(limit => createCombinedLimitHTML(limit, rule.groups || [])).join('');
+            const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
+            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
+            for (const [roleKey, roleName] of Object.entries(roles)) {
+                const isChecked = (rule.allowed_roles || []).includes(roleKey);
+                rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
+            }
+            rolesHTML += '</div>';
+
+             return `
+                ${rolesHTML}
+                <div class="rule-settings-grid">
+                    <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
+                </div>
+                <h5>判定基準 (該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点">
+                    <input type="number" class="median-threshold-app" value="${rule.thresholds?.applicable?.median || ''}" placeholder="中央値">
+                </div>
+                <h5>判定基準 (非該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-nonapp" value="${rule.thresholds?.non_applicable?.pass || ''}" placeholder="合格最低点">
+                    <input type="number" class="median-threshold-nonapp" value="${rule.thresholds?.non_applicable?.median || ''}" placeholder="中央値">
+                </div>
+                 <h5>満点</h5>
+                <div class="rule-settings-grid">
+                    <input type="number" class="max-possible-score" value="${rule.maxPossibleScore || ''}" placeholder="満点">
+                </div>
+                <hr>
+                <h3>科目グループ (上にあるほど優先)</h3>
+                <div class="groups-container">${groupsHTML}</div>
+                <button class="btn-add add-group-btn">科目グループを追加</button>
+                <hr>
+                <h3>科目グループ合計の上限設定</h3>
+                <div class="combined-limits-container">${combinedLimitsHTML}</div>
+                <button class="btn-add add-combined-limit-btn">新しい合計上限を追加</button>
+                <hr>
+                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
+            `;
+        }
+        
         function createTieredEditorHTML(rule) {
             let keywordsHTML = (rule.priorityKeywords || []).map(name => `<div class="subject-tag">${name}<span class="remove-subject-tag">&times;</span></div>`).join('');
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
@@ -154,10 +218,10 @@
                 <div class="rule-settings-grid">
                     <input type="number" class="max-possible-score" value="${rule.maxPossibleScore || ''}" placeholder="満点">
                 </div>
-                 <h5>重み${rule.priorityWeight || '2.0'}が適用される科目（個別指定）</h5>
+                 <h5>重み2が適用される科目（キーワード部分一致）</h5>
                  <div class="subjects-container">${keywordsHTML}</div>
                  <div class="subject-add-area">
-                    <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
+                    <input type="text" class="new-subject-name" placeholder="キーワード...">
                     <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
                  </div>
                  <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
@@ -182,7 +246,7 @@
                 </div>
             `;
         }
-
+        
         function createCombinedLimitHTML(limit, groups) {
             let checkboxesHTML = '';
             (groups || []).forEach(group => {
@@ -206,13 +270,16 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
-            if(sessionInfo){ currentUser = sessionInfo.user; await initializeApp(); }
+            if(sessionInfo){
+                currentUser = sessionInfo.user;
+                await initializeApp();
+            }
         });
         
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            const newRule = { name: '新しい学類', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
+            const newRule = { name: '新しい学類', type: 'standard', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
             majorRules.push(newRule);
             renderAllRules();
         });
@@ -265,10 +332,10 @@
             if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) { e.preventDefault(); }
             
             if (target.matches('.duplicate-major-btn')) {
-                const currentRuleData = readRuleFromDOM(ruleEditor);
-                delete currentRuleData.id; 
-                currentRuleData.name = `${currentRuleData.name} (コピー)`;
-                majorRules.push(currentRuleData);
+                const ruleToDuplicate = readRuleFromDOM(ruleEditor);
+                delete ruleToDuplicate.id; 
+                ruleToDuplicate.name = `${ruleToDuplicate.name} (コピー)`;
+                majorRules.push(ruleToDuplicate);
                 renderAllRules();
             } else if (target.matches('.add-combined-limit-btn')) {
                 const container = ruleEditor.querySelector('.combined-limits-container');
@@ -296,7 +363,7 @@
                 const input = target.previousElementSibling;
                 const subjectName = input.value.trim();
                 if (subjectName) {
-                    const subjectsContainer = input.closest('.group-box').querySelector('.subjects-container');
+                    const subjectsContainer = input.closest('.group-box, .rule-editor-content').querySelector('.subjects-container');
                     const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
                     if (!existingSubjects.includes(subjectName)) {
                         subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
@@ -319,6 +386,21 @@
             }
         });
         
+        customMajorsContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('rule-type-select')) {
+                const ruleEditor = e.target.closest('.rule-editor');
+                const contentWrapper = ruleEditor.querySelector('.editor-content-wrapper');
+                const newType = e.target.value;
+                const tempRule = readRuleFromDOM(ruleEditor);
+                tempRule.type = newType;
+                if (newType === 'tiered') {
+                    contentWrapper.innerHTML = createTieredEditorHTML(tempRule);
+                } else {
+                    contentWrapper.innerHTML = createStandardEditorHTML(tempRule);
+                }
+            }
+        });
+
         function readRuleFromDOM(ruleEditor) {
             const type = ruleEditor.querySelector('.rule-type-select')?.value || 'standard';
             let rule_data;
@@ -347,7 +429,12 @@
                         non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
                     },
                     maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0,
-                    groups: Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box)')).map(groupEl => ({ name: groupEl.querySelector('.group-name').value.trim(), weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0, cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0, subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) })),
+                    groups: Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box)')).map(groupEl => ({
+                        name: groupEl.querySelector('.group-name').value.trim(),
+                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
+                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
+                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
+                    })),
                     combinedLimits: Array.from(ruleEditor.querySelectorAll('.combined-limit-box')).map(limitEl => ({
                         name: limitEl.querySelector('.combined-limit-name').value.trim(),
                         cap: parseFloat(limitEl.querySelector('.combined-limit-cap').value) || 0,
