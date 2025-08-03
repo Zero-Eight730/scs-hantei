@@ -47,27 +47,14 @@
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'index.html';
-                return null;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return null; }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            
-            if (!isAdmin) {
-                alert('アクセス権限がありません。');
-                window.location.href = 'input.html';
-                return null;
-            }
-
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            
-            document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) { link.style.display = 'inline-block'; }
-            });
+            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
             return { user, isAdmin };
         }
 
@@ -219,10 +206,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
-            if(sessionInfo){
-                currentUser = sessionInfo.user;
-                await initializeApp();
-            }
+            if(sessionInfo){ currentUser = sessionInfo.user; await initializeApp(); }
         });
         
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
@@ -237,27 +221,18 @@
         customMajorsContainer.addEventListener('dragstart', (e) => {
              if (e.target.classList.contains('rule-editor')) {
                 draggedItem = e.target;
-                setTimeout(() => {
-                    if (draggedItem) draggedItem.classList.add('dragging');
-                }, 0);
+                setTimeout(() => { if (draggedItem) draggedItem.classList.add('dragging'); }, 0);
             }
         });
         customMajorsContainer.addEventListener('dragend', (e) => {
-            if(draggedItem) {
-                draggedItem.classList.remove('dragging');
-                draggedItem = null;
-            }
+            if(draggedItem) { draggedItem.classList.remove('dragging'); draggedItem = null; }
         });
         customMajorsContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
+            if (!draggedItem) return;
             const afterElement = getDragAfterElement(customMajorsContainer, e.clientY);
-            if (draggedItem) {
-                if (afterElement == null) {
-                    customMajorsContainer.appendChild(draggedItem);
-                } else {
-                    customMajorsContainer.insertBefore(draggedItem, afterElement);
-                }
-            }
+            if (afterElement == null) { customMajorsContainer.appendChild(draggedItem); } 
+            else { customMajorsContainer.insertBefore(draggedItem, afterElement); }
         });
         customMajorsContainer.addEventListener('drop', (e) => {
             e.preventDefault();
@@ -265,15 +240,10 @@
             draggedItem.classList.remove('dragging');
             const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
             const newRulesOrder = [];
-            const oldRulesMap = new Map(majorRules.map((rule, index) => {
-                const key = rule.id || `new-${index}`;
-                return [key, rule];
-            }));
+            const oldRulesMap = new Map(majorRules.map((rule, index) => [`${rule.id || 'new-' + index}`, rule]));
             newElements.forEach(element => {
                 const key = element.dataset.majorId;
-                if(oldRulesMap.has(key)){
-                    newRulesOrder.push(oldRulesMap.get(key));
-                }
+                if(oldRulesMap.has(key)){ newRulesOrder.push(oldRulesMap.get(key)); }
             });
             majorRules = newRulesOrder;
             renderAllRules();
@@ -283,11 +253,8 @@
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
+                if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } 
+                else { return closest; }
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
 
@@ -295,15 +262,20 @@
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-            if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) {
-                e.preventDefault();
-            }
+            if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) { e.preventDefault(); }
+            
             if (target.matches('.duplicate-major-btn')) {
                 const currentRuleData = readRuleFromDOM(ruleEditor);
                 delete currentRuleData.id; 
                 currentRuleData.name = `${currentRuleData.name} (コピー)`;
                 majorRules.push(currentRuleData);
                 renderAllRules();
+            } else if (target.matches('.add-combined-limit-btn')) {
+                const container = ruleEditor.querySelector('.combined-limits-container');
+                const groups = Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box) .group-name')).map(input => ({name: input.value.trim()})).filter(g => g.name);
+                container.insertAdjacentHTML('beforeend', createCombinedLimitHTML({}, groups));
+            } else if (target.matches('.remove-combined-limit-btn')) {
+                target.closest('.combined-limit-box').remove();
             } else if (target.matches('.remove-major-btn')) {
                 const ruleId = ruleEditor.dataset.majorId;
                 if (ruleId.startsWith('new-')) { ruleEditor.remove(); return; }
@@ -331,12 +303,6 @@
                     }
                     input.value = '';
                 }
-            } else if (target.matches('.add-combined-limit-btn')) {
-                const container = ruleEditor.querySelector('.combined-limits-container');
-                const groups = Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box) .group-name')).map(input => input.value.trim()).filter(name => name);
-                container.insertAdjacentHTML('beforeend', createCombinedLimitHTML({}, groups));
-            } else if (target.matches('.remove-combined-limit-btn')) {
-                target.closest('.combined-limit-box').remove();
             } else if (target.matches('.save-one-rule-btn')) {
                 const ruleId = ruleEditor.dataset.majorId.startsWith('new-') ? null : ruleEditor.dataset.majorId;
                 const ruleData = readRuleFromDOM(ruleEditor);
