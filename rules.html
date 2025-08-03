@@ -18,17 +18,17 @@
             <a href="majors.html">志望学類登録</a>
             <strong>学類登録</strong>
             <a href="admin-settings.html" class="admin-only">公開設定</a>
-            <a href="account.html">アカウント管理</a>
+            <a href="account.html">アカウント</a>
         </nav>
         <div class="user-status">
             <span id="user-display"></span>
             <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
         <div class="panel">
-            <h2>学類計算ルール（全ユーザー共通）</h2>
-            <p style="text-align:center;">管理者権限を持つアカウントで、全ユーザーが利用できる共通ルールを作成・編集します。</p>
+            <h2>学類登録（全ユーザー共通）</h2>
+            <p style="text-align:center;">管理者権限を持つアカウントで、学類を作成・編集します。</p>
             <div id="custom-majors-container"></div>
-            <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
+            <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類を追加</button>
             <button id="save-order-btn" class="btn-main" style="width: 100%; margin-top: 10px; display: none;">現在の並び順を保存</button>
         </div>
     </div>
@@ -109,7 +109,7 @@
             majorDetails.innerHTML = `
                 <summary>
                     <span class="drag-handle">⠿</span>
-                    <span class="summary-title">${rule.name || '新規学類ルール'}</span>
+                    <span class="summary-title">${rule.name || '新規学類'}</span>
                 </summary>
                 <div class="rule-editor-content">
                     <div class="rule-editor-header">
@@ -127,7 +127,7 @@
             let groupsHTML = (rule.groups || []).map(createGroupHTML).join('');
             let combinedLimitsHTML = (rule.combinedLimits || []).map(limit => createCombinedLimitHTML(limit, rule.groups || [])).join('');
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
-            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
+            let rolesHTML = '<div class="roles-container"><h5>優先区分</h5>';
             for (const [roleKey, roleName] of Object.entries(roles)) {
                 const isChecked = (rule.allowed_roles || []).includes(roleKey);
                 rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
@@ -140,12 +140,12 @@
                     <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
                     <input type="number" class="other-cap" value="${rule.otherCap || '0'}" placeholder="その他単位数上限 (0=無制限)">
                 </div>
-                <h5>判定基準 (該当ロール用)</h5>
+                <h5>判定基準 (優先用)</h5>
                 <div class="rule-settings-grid">
                      <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点">
                     <input type="number" class="median-threshold-app" value="${rule.thresholds?.applicable?.median || ''}" placeholder="中央値">
                 </div>
-                <h5>判定基準 (非該当ロール用)</h5>
+                <h5>判定基準 (全区分用)</h5>
                 <div class="rule-settings-grid">
                      <input type="number" class="pass-threshold-nonapp" value="${rule.thresholds?.non_applicable?.pass || ''}" placeholder="合格最低点">
                     <input type="number" class="median-threshold-nonapp" value="${rule.thresholds?.non_applicable?.median || ''}" placeholder="中央値">
@@ -164,7 +164,7 @@
                 <div class="combined-limits-container">${combinedLimitsHTML}</div>
                 <button class="btn-add add-combined-limit-btn">新しい合計上限を追加</button>
                 <hr>
-                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
+                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">この学類を保存</button>
             `;
         }
         
