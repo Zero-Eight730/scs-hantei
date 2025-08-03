@@ -5,8 +5,8 @@ function normalizeName(name) {
     return name.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, '');
 }
 
-// 標準ルール用の計算関数
-function calculateCustomMajor(subjects, rule) {
+// 標準ルール（グループ指定）用の計算関数
+function calculateStandardMajor(subjects, rule) {
     let remainingSubjects = JSON.parse(JSON.stringify(subjects));
     let breakdown = []; 
     let totalScore = 0; 
@@ -15,8 +15,15 @@ function calculateCustomMajor(subjects, rule) {
     const includedNames = new Set();
 
     (rule.groups || []).forEach(group => {
-        let groupSubjects = remainingSubjects.filter(s => (group.subjects || []).includes(s.name));
+        let groupSubjects;
+        if (group.matchType === 'partial') {
+            groupSubjects = remainingSubjects.filter(s => (group.keywords || []).some(kw => s.name.includes(kw)));
+        } else {
+            groupSubjects = remainingSubjects.filter(s => (group.keywords || []).includes(s.name));
+        }
+        
         groupSubjects.sort((a, b) => b.grade - a.grade);
+        
         let groupCredits = 0;
         groupSubjects.forEach(subject => {
             if (!group.cap || group.cap === 0 || groupCredits + subject.credits <= group.cap) {
@@ -53,17 +60,17 @@ function calculateCustomMajor(subjects, rule) {
     return { score: totalScore, credits: totalCredits, breakdown, maxScore };
 }
 
-// 新しい物理学類型ルール用の計算関数
+// 優先度ルール（物理学類型）用の計算関数
 function calculateTieredMajor(subjects, rule) {
     const allSubjects = JSON.parse(JSON.stringify(subjects));
     let breakdown = [];
     
-    // 1. 全科目を「重点(Tier1)」「準重点(Tier2)」「その他」に分類
     const tier1Subjects = [];
     const tier2Subjects = [];
     
     allSubjects.forEach(s => {
-        if ((rule.prioritySubjects || []).includes(s.name)) {
+        // キーワード部分一致で判定
+        if ((rule.priorityKeywords || []).some(kw => s.name.includes(kw))) {
             s.weight = rule.priorityWeight || 2.0;
             s.efficiency = s.grade * s.weight;
             tier1Subjects.push(s);
@@ -74,7 +81,6 @@ function calculateTieredMajor(subjects, rule) {
         }
     });
 
-    // 2. 重点と準重点を混ぜて効率順にソート
     const combinedPriority = [...tier1Subjects, ...tier2Subjects];
     combinedPriority.sort((a, b) => b.efficiency - a.efficiency);
 
@@ -85,8 +91,9 @@ function calculateTieredMajor(subjects, rule) {
     const includedNames = new Set();
     const rulePriorityCap = rule.priorityCreditCap || 0;
     const ruleTotalCap = rule.totalCap || 0;
+    const ruleOverflowWeight = rule.overflowWeight === undefined ? 0.1 : rule.overflowWeight;
 
-    // 3. 重点・準重点の枠を埋める
+    // 重点枠（1倍または2倍）の計算
     for (const subject of combinedPriority) {
         if ((ruleTotalCap > 0 && totalCredits >= ruleTotalCap) || (rulePriorityCap > 0 && priorityCredits >= rulePriorityCap)) {
             break;
@@ -106,9 +113,9 @@ function calculateTieredMajor(subjects, rule) {
         includedNames.add(subject.name);
     }
     
-    // 4. 残りの科目を0.1倍枠として計算
+    // 超過枠（0.1倍など）の計算
     let remainingSubjects = allSubjects.filter(s => !includedNames.has(s.name));
-    remainingSubjects.forEach(s => s.efficiency = s.grade * (rule.overflowWeight || 0.1));
+    remainingSubjects.forEach(s => s.efficiency = s.grade * s.weight * ruleOverflowWeight);
     remainingSubjects.sort((a, b) => b.efficiency - a.efficiency);
 
     for (const subject of remainingSubjects) {
@@ -120,15 +127,14 @@ function calculateTieredMajor(subjects, rule) {
         }
 
         totalCredits += subject.credits;
-        const scoreToAdd = subject.grade * subject.credits * subject.weight * (rule.overflowWeight || 0.1);
-        const maxScoreToAdd = 100 * subject.credits * subject.weight * (rule.overflowWeight || 0.1);
+        const scoreToAdd = subject.grade * subject.credits * subject.weight * ruleOverflowWeight;
+        const maxScoreToAdd = 100 * subject.credits * subject.weight * ruleOverflowWeight;
         totalScore += scoreToAdd;
         maxScore += maxScoreToAdd;
-        breakdown.push({ text: `${subject.name} [貢献:${scoreToAdd.toFixed(2)}] (x${subject.weight} @ 0.1倍)`, status: 'included' });
+        breakdown.push({ text: `${subject.name} [貢献:${scoreToAdd.toFixed(2)}] (x${subject.weight} @ ${ruleOverflowWeight}倍)`, status: 'included' });
         includedNames.add(subject.name);
     }
 
-    // 5. 計算から漏れた科目をリストアップ
     allSubjects.forEach(s => {
         if (!includedNames.has(s.name)) {
              breakdown.push({ text: s.name, status: 'excluded', reason: '優先度不足または上限超過' });
