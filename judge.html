@@ -183,7 +183,7 @@
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 ${judgmentHTML}
                 <div class="details-display">${detailsHTML}</div>
-                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
+                <div class="breakdown-display"><details><summary>成績内訳</summary>${breakdownHTML}</details></div>
             `;
             resultsContainer.appendChild(card);
             
@@ -191,10 +191,10 @@
                 try {
                     const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
                     if (error) throw new Error(error.message);
-                    if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
+                    if (!data || data.length === 0) throw new Error('未登録か、比較対象がいません');
                     
                     const rankData = data[0];
-                    const rankLabel = rankData.is_applicable ? '順位 (該当ロール内)' : '順位 (非該当ロール内)';
+                    const rankLabel = rankData.is_applicable ? '順位 (優先区分内)' : '順位 (全区分内)';
                     
                     const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
                     if (rankInfoDiv) {
