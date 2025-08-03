@@ -65,7 +65,6 @@
             if (mainApp) mainApp.style.display = 'block';
             if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
             
-            // This is for other pages, but good to have consistency
             document.querySelectorAll('.admin-only').forEach(link => {
                 if (isAdmin) { link.style.display = 'inline-block'; }
             });
@@ -137,8 +136,8 @@
                     <div class="rule-editor-header">
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
                         <select class="rule-type-select">
-                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール</option>
-                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール</option>
+                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (グループ指定)</option>
+                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (キーワード指定)</option>
                         </select>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
@@ -235,22 +234,55 @@
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            const newRule = { name: '新しい学類', type: 'standard', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 80, medianThreshold: 90, allowed_roles: [] };
+            const newRule = { name: '', type: 'standard', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0, allowed_roles: [] };
             majorRules.push(newRule);
             renderAllRules();
         });
 
         let draggedItem = null;
-        customMajorsContainer.addEventListener('dragstart', (e) => { /* ... */ });
-        customMajorsContainer.addEventListener('dragend', (e) => { /* ... */ });
-        customMajorsContainer.addEventListener('dragover', (e) => { /* ... */ });
-        customMajorsContainer.addEventListener('drop', (e) => { /* ... */ });
-        function getDragAfterElement(container, y) { /* ... */ }
+        customMajorsContainer.addEventListener('dragstart', (e) => {
+             if (e.target.classList.contains('rule-editor')) {
+                draggedItem = e.target;
+                setTimeout(() => {
+                    draggedItem.style.opacity = '0.5';
+                }, 0);
+            }
+        });
+        customMajorsContainer.addEventListener('dragend', (e) => {
+            if(draggedItem) {
+                draggedItem.style.opacity = '1';
+                draggedItem = null;
+            }
+        });
+        customMajorsContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(customMajorsContainer, e.clientY);
+            if (draggedItem) {
+                if (afterElement == null) {
+                    customMajorsContainer.appendChild(draggedItem);
+                } else {
+                    customMajorsContainer.insertBefore(draggedItem, afterElement);
+                }
+            }
+        });
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
 
         customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
+
             if (target.classList.contains('remove-major-btn')) {
                 const ruleId = ruleEditor.dataset.majorId;
                 if (ruleId.startsWith('new-')) { ruleEditor.remove(); return; }
@@ -284,9 +316,9 @@
                 
                 let rule_data;
                 if (type === 'tiered') {
-                    rule_data = { type: 'tiered', priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0, totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0, overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value) || 0, priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) };
+                    rule_data = { type, priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0, totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0, overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value), priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) };
                 } else {
-                    rule_data = { type: 'standard', totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0, passThreshold: parseFloat(ruleEditor.querySelector('.pass-threshold').value) || 0, medianThreshold: parseFloat(ruleEditor.querySelector('.median-threshold').value) || 0, groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({ name: groupEl.querySelector('.group-name').value.trim(), weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0, cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0, subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) })) };
+                    rule_data = { type, totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0, passThreshold: parseFloat(ruleEditor.querySelector('.pass-threshold').value) || 0, medianThreshold: parseFloat(ruleEditor.querySelector('.median-threshold').value) || 0, groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({ name: groupEl.querySelector('.group-name').value.trim(), weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0, cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0, subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) })) };
                 }
                 
                 const payload = {
@@ -296,7 +328,6 @@
                 };
 
                 if (!payload.name) { alert('学類名は必須です。'); return; }
-                
                 let query;
                 if (ruleId) {
                     query = supabaseClient.from('major_rules').update(payload).eq('id', ruleId);
@@ -309,6 +340,19 @@
             }
         });
         
+        customMajorsContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('rule-type-select')) {
+                const ruleEditor = e.target.closest('.rule-editor');
+                const contentWrapper = ruleEditor.querySelector('.editor-content-wrapper');
+                const newType = e.target.value;
+                const tempRule = { type: newType }; // Basic reset
+                if (newType === 'tiered') {
+                    contentWrapper.innerHTML = createTieredEditorHTML(tempRule);
+                } else {
+                    contentWrapper.innerHTML = createStandardEditorHTML(tempRule);
+                }
+            }
+        });
     </script>
 </body>
 </html>
