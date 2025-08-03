@@ -14,13 +14,7 @@ function calculateStandardMajor(subjects, rule) {
     const includedNames = new Set();
 
     (rule.groups || []).forEach(group => {
-        let groupSubjects;
-        if (group.matchType === 'partial') {
-            groupSubjects = remainingSubjects.filter(s => (group.keywords || []).some(kw => s.name.includes(kw)));
-        } else {
-            groupSubjects = remainingSubjects.filter(s => (group.subjects || []).includes(s.name));
-        }
-        
+        let groupSubjects = remainingSubjects.filter(s => (group.subjects || []).includes(s.name));
         groupSubjects.sort((a, b) => b.grade - a.grade);
         
         let groupCredits = 0;
@@ -68,6 +62,7 @@ function calculateTieredMajor(subjects, rule) {
     const tier1_subjects_raw = [];
     const other_subjects_raw = [];
     
+    // 1. 科目を「重み2対象」と「それ以外」に分類
     allSubjects.forEach(s => {
         const normalizedName = normalizeName(s.name);
         if ((rule.priorityKeywords || []).some(kw => normalizedName.includes(kw))) {
@@ -79,14 +74,15 @@ function calculateTieredMajor(subjects, rule) {
         }
     });
 
-    // 「その他」の中から成績上位4単位分だけを「重み1」の対象として選抜
+    // 2. 「それ以外」の中から、指定された単位数まで成績上位の科目を選抜し、「重み1」を与える
     other_subjects_raw.sort((a, b) => b.grade - a.grade);
     const tier2_subjects_pool = [];
     let otherPriorityCredits = 0;
     const otherPriorityCap = rule.otherPriorityCap === undefined ? 4.0 : rule.otherPriorityCap;
+
     for (const subject of other_subjects_raw) {
-        if (otherPriorityCredits >= otherPriorityCap) break;
-        if (otherPriorityCredits + subject.credits > otherPriorityCap) continue;
+        if (otherPriorityCap > 0 && otherPriorityCredits >= otherPriorityCap) break;
+        if (otherPriorityCap > 0 && otherPriorityCredits + subject.credits > otherPriorityCap) continue;
 
         otherPriorityCredits += subject.credits;
         subject.weight = 1.0;
@@ -94,7 +90,7 @@ function calculateTieredMajor(subjects, rule) {
         tier2_subjects_pool.push(subject);
     }
     
-    // 重み2の科目と、選抜された重み1の科目を合算し、効率順にソート
+    // 3. 「重み2」と選抜された「重み1」の科目を合算し、効率順にソート
     const combinedPriority = [...tier1_subjects_raw, ...tier2_subjects_pool];
     combinedPriority.sort((a, b) => b.efficiency - a.efficiency);
 
@@ -106,10 +102,10 @@ function calculateTieredMajor(subjects, rule) {
     const ruleTotalCap = rule.totalCap || 24;
     const ruleOverflowWeight = rule.overflowWeight === undefined ? 0.1 : rule.overflowWeight;
 
-    // 重点枠の計算
+    // 4. 重点枠（重み2 or 1）の計算
     for (const subject of combinedPriority) {
-        if (totalCredits >= rulePriorityCap || totalCredits >= ruleTotalCap) break;
-        if (totalCredits + subject.credits > rulePriorityCap || totalCredits + subject.credits > ruleTotalCap) continue;
+        if ((ruleTotalCap > 0 && totalCredits >= ruleTotalCap) || (rulePriorityCap > 0 && totalCredits >= rulePriorityCap)) break;
+        if ((ruleTotalCap > 0 && totalCredits + subject.credits > ruleTotalCap) || (rulePriorityCap > 0 && totalCredits + subject.credits > rulePriorityCap)) continue;
         
         totalCredits += subject.credits;
         totalScore += subject.grade * subject.credits * subject.weight;
@@ -118,17 +114,17 @@ function calculateTieredMajor(subjects, rule) {
         includedNames.add(subject.name);
     }
     
-    // 超過枠の計算
+    // 5. 超過枠の計算
     let remainingSubjects = allSubjects.filter(s => !includedNames.has(s.name));
     remainingSubjects.forEach(s => {
-        s.weight = s.weight || 1.0; // もし重みが未設定なら1とする
+        s.weight = s.weight || 1.0; 
         s.efficiency = s.grade * s.weight * ruleOverflowWeight;
     });
     remainingSubjects.sort((a, b) => b.efficiency - a.efficiency);
 
     for (const subject of remainingSubjects) {
-        if (totalCredits >= ruleTotalCap) break;
-        if (totalCredits + subject.credits > ruleTotalCap) continue;
+        if (ruleTotalCap > 0 && totalCredits >= ruleTotalCap) break;
+        if (ruleTotalCap > 0 && totalCredits + subject.credits > ruleTotalCap) continue;
 
         const scoreToAdd = subject.grade * subject.credits * subject.weight * ruleOverflowWeight;
         const maxScoreToAdd = 100 * subject.credits * subject.weight * ruleOverflowWeight;
