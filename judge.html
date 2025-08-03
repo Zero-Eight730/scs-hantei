@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>判定実行 - モギモギ判定</title>
+    <title>判定実行 - 成績計算サイト</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
@@ -14,13 +14,13 @@
         <nav>
             <a href="input.html">成績入力</a>
             <a href="view.html">成績参照</a>
-            <strong>判定</strong>
+            <strong>判定実行</strong>
             <a href="majors.html">志望学類登録</a>
-            <a href="rules.html" class="admin-only">学類登録</a>
-            <a href="admin-settings.html" class="admin-only">公開設定</a>
-            <a href="account.html">アカウント</a>
+            <a href="rules.html" class="admin-only">ルール設定</a>
+            <a href="admin-settings.html" class="admin-only">ランキング設定</a>
+            <a href="account.html">アカウント管理</a>
         </nav>
-       <div class="user-status">
+        <div class="user-status">
              <span id="user-display"></span>
              <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
@@ -56,11 +56,8 @@
             if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            
             document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) {
-                    link.style.display = 'inline-block';
-                }
+                if (isAdmin) { link.style.display = 'inline-block'; }
             });
             return { user, isAdmin, role: profile.role };
         }
@@ -71,15 +68,12 @@
                 if (userError && userError.code !== 'PGRST116') throw userError;
                 savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
                 targetMajors = userData?.target_majors || [];
-
                 const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data');
                 if (rulesError) throw rulesError;
                 allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name, allowed_roles: r.allowed_roles }));
-
                 const { data: settingsData, error: settingsError } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
                 if (settingsError) throw settingsError;
                 rankingSettings = settingsData.settings;
-
             } catch (e) {
                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
                 calculateBtn.disabled = true;
@@ -100,7 +94,6 @@
         calculateBtn.addEventListener('click', async () => {
             if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
             if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
-            
             calculateBtn.disabled = true;
             calculateBtn.textContent = '計算・スコア更新中...';
             resultsContainer.innerHTML = '';
@@ -108,26 +101,26 @@
             try {
                 const scoresToUpsert = [];
                 allPublicRules.forEach(rule => {
-                    const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
+                    const result = calculateCustomMajor(savedSubjects, rule);
                     scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
                 });
 
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
 
                 const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
                 if (rulesToCalculate.length === 0) {
-                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
+                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。</p>`;
                 } else {
                     rulesToCalculate.forEach(rule => {
-                        const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
+                        const result = calculateCustomMajor(savedSubjects, rule);
                         renderResultCard(rule.name, result, rule);
                     });
                 }
             } catch(error) {
-                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">計算またはスコア更新中にエラーが発生しました: ${error.message}</p>`;
+                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${error.message}</p>`;
             } finally {
                 calculateBtn.disabled = false;
                 calculateBtn.textContent = '計算を実行';
@@ -136,7 +129,7 @@
         
         async function renderResultCard(majorName, result, rule) {
             const isApplicable = (rule.allowed_roles || []).includes(userRole);
-            const thresholds = isApplicable ? rule.thresholds.applicable : rule.thresholds.non_applicable;
+            const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
 
             const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
             let judgment = 'N/A', judgmentClass = 'judgment-E';
