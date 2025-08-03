@@ -95,7 +95,7 @@
             
             const scoresToUpsert = [];
             allPublicRules.forEach(rule => {
-                const result = calculateCustomMajor(savedSubjects, rule);
+                 const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                 scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
             });
             if (scoresToUpsert.length > 0) {
@@ -113,7 +113,7 @@
                 resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
             } else {
                 rulesToCalculate.forEach(rule => {
-                    const result = calculateCustomMajor(savedSubjects, rule);
+                    const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                     renderResultCard(rule.name, result, rule);
                 });
             }
