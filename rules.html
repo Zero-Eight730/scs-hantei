@@ -20,173 +20,393 @@
             <a href="account.html">アカウント管理</a>
         </nav>
         <div class="user-status">
-             <span id="user-display"></span>
-             <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
+            <span id="user-display"></span>
+            <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
         <div class="panel">
-            <h2>判定実行</h2>
-            <p style="text-align:center;">「志望学類登録」で選択した学類の移行点を計算します。</p>
-            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
-            <div id="results-container"></div>
+            <h2>学類計算ルール（全ユーザー共通）</h2>
+            <p style="text-align:center;">管理者権限を持つアカウントで、全ユーザーが利用できる共通ルールを作成・編集します。</p>
+            <div id="custom-majors-container"></div>
+            <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
         </div>
     </div>
+
+    <datalist id="master-subjects-list"></datalist>
+
     <script>
         let currentUser = null;
-        let userRole = 'user';
-        let savedSubjects = [];
-        let allPublicRules = [];
-        let targetMajors = [];
-        let rankingSettings = {}; 
-        
+        let masterSubjects = [];
+        let majorRules = [];
+
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
-        const calculateBtn = document.getElementById('calculate-btn');
-        const resultsContainer = document.getElementById('results-container');
-        
+        const customMajorsContainer = document.getElementById('custom-majors-container');
+        const addMajorBtn = document.getElementById('add-major-btn');
+        const masterSubjectsDatalist = document.getElementById('master-subjects-list');
+
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
-                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
-                    window.location.href = 'index.html';
-                }
+                window.location.href = 'index.html';
                 return null;
             }
             const user = session.user;
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中`;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
+            
+            if (!isAdmin) {
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return null;
+            }
+
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            
             document.querySelectorAll('.admin-only').forEach(link => {
                 if (isAdmin) { link.style.display = 'inline-block'; }
             });
-            return { user, isAdmin, role: profile.role };
+            return { user, isAdmin };
+        }
+
+        async function initializeApp() {
+            try {
+                const response = await fetch('kdb_2025.csv');
+                const csvText = await response.text();
+                Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
+                    const uniqueSubjects = new Map();
+                    results.data.forEach(row => {
+                        const name = row['科目名'] ? row['科目名'].trim() : '';
+                        const credits = parseFloat(row['単位数']);
+                        if(name && !isNaN(credits)) {
+                            const key = `${name}|${credits}`;
+                            if (!uniqueSubjects.has(key)) { uniqueSubjects.set(key, { name, credits }); }
+                        }
+                    });
+                    masterSubjects = Array.from(uniqueSubjects.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                    masterSubjectsDatalist.innerHTML = '';
+                    masterSubjects.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject.name;
+                        masterSubjectsDatalist.appendChild(option);
+                    });
+                }});
+            } catch (error) { alert('科目マスターリストの読み込みに失敗しました。'); }
+            await loadMajorRules();
+        }
+
+        async function loadMajorRules() {
+            try {
+                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data');
+                if (error) throw error;
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data }));
+                renderAllRules();
+            } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
+        }
+
+        function renderAllRules() {
+            const openDetails = new Set(Array.from(document.querySelectorAll('.rule-editor[open]')).map(el => el.dataset.majorId));
+            customMajorsContainer.innerHTML = '';
+            majorRules.forEach((rule, index) => {
+                const ruleEl = createRuleElement(rule, index);
+                if (openDetails.has(rule.id || `new-${index}`)) { ruleEl.open = true; }
+                customMajorsContainer.appendChild(ruleEl);
+            });
+        }
+
+        function createRuleElement(rule, majorIndex) {
+            const majorDetails = document.createElement('details');
+            majorDetails.className = 'rule-editor';
+            majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
+            majorDetails.draggable = true;
+
+            const isTiered = rule.type === 'tiered';
+            let specificEditorHTML = isTiered ? createTieredEditorHTML(rule) : createStandardEditorHTML(rule);
+
+            majorDetails.innerHTML = `
+                <summary>
+                    <span class="drag-handle">⠿</span>
+                    <span class="summary-title">${rule.name || '新規学類ルール'}</span>
+                </summary>
+                <div class="rule-editor-content">
+                    <div class="rule-editor-header">
+                        <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
+                        <select class="rule-type-select">
+                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (個別指定)</option>
+                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (重み2/1/0.1)</option>
+                        </select>
+                        <button class="btn-danger remove-major-btn">削除</button>
+                    </div>
+                    <div class="editor-content-wrapper">${specificEditorHTML}</div>
+                </div>
+            `;
+            return majorDetails;
+        }
+
+        function createStandardEditorHTML(rule) {
+            let groupsHTML = (rule.groups || []).map(createGroupHTML).join('');
+            const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
+            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
+            for (const [roleKey, roleName] of Object.entries(roles)) {
+                const isChecked = (rule.allowed_roles || []).includes(roleKey);
+                rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
+            }
+            rolesHTML += '</div>';
+
+             return `
+                ${rolesHTML}
+                <div class="rule-settings-grid">
+                    <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
+                </div>
+                <h5>判定基準 (該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点">
+                    <input type="number" class="median-threshold-app" value="${rule.thresholds?.applicable?.median || ''}" placeholder="中央値">
+                </div>
+                <h5>判定基準 (非該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-nonapp" value="${rule.thresholds?.non_applicable?.pass || ''}" placeholder="合格最低点">
+                    <input type="number" class="median-threshold-nonapp" value="${rule.thresholds?.non_applicable?.median || ''}" placeholder="中央値">
+                </div>
+                 <h5>満点</h5>
+                <div class="rule-settings-grid">
+                    <input type="number" class="max-possible-score" value="${rule.maxPossibleScore || ''}" placeholder="満点">
+                </div>
+                <div class="groups-container">${groupsHTML}</div>
+                <button class="btn-add add-group-btn">科目グループを追加</button>
+                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
+            `;
         }
         
-        async function loadInitialData() {
-            try {
-                const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
-                if (userError && userError.code !== 'PGRST116') throw userError;
-                savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
-                targetMajors = userData?.target_majors || [];
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data');
-                if (rulesError) throw rulesError;
-                allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name, allowed_roles: r.allowed_roles }));
-                const { data: settingsData, error: settingsError } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
-                if (settingsError) throw settingsError;
-                rankingSettings = settingsData.settings;
-            } catch (e) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
-                calculateBtn.disabled = true;
+        function createTieredEditorHTML(rule) {
+            let keywordsHTML = (rule.priorityKeywords || []).map(name => `<div class="subject-tag">${name}<span class="remove-subject-tag">&times;</span></div>`).join('');
+            const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
+            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
+            for (const [roleKey, roleName] of Object.entries(roles)) {
+                const isChecked = (rule.allowed_roles || []).includes(roleKey);
+                rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
             }
+            rolesHTML += '</div>';
+
+            return `
+                 ${rolesHTML}
+                 <div class="rule-settings-grid">
+                    <input type="number" class="priority-credit-cap" value="${rule.priorityCreditCap || '18'}" placeholder="重点科目上限">
+                    <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
+                    <input type="number" class="priority-weight" value="${rule.priorityWeight || '2.0'}" step="0.1" placeholder="重点重み (例: 2.0)">
+                    <input type="number" class="overflow-weight" value="${rule.overflowWeight === undefined ? '0.1' : rule.overflowWeight}" step="0.1" placeholder="超過時重み (例: 0.1)">
+                 </div>
+                 <h5>重点科目キーワード（部分一致）</h5>
+                 <div class="subjects-container">${keywordsHTML}</div>
+                 <div class="subject-add-area">
+                    <input type="text" class="new-subject-name" placeholder="キーワード...">
+                    <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
+                 </div>
+                 <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
+            `;
+        }
+        
+        function createGroupHTML(group) {
+            const subjectsHTML = (group.subjects || []).map(subjectName => `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`).join('');
+            return `
+                <div class="group-box">
+                    <h4>科目グループ</h4>
+                    <div class="rule-settings-grid">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
+                        <input type="number" class="group-weight" value="${group.weight || '1.0'}" step="0.1" placeholder="重み">
+                        <input type="number" class="group-cap" value="${group.cap || '0'}" placeholder="単位数上限 (0=無制限)">
+                    </div>
+                    <h5>科目リスト (個別指定)</h5>
+                    <div class="subjects-container">${subjectsHTML}</div>
+                    <div class="subject-add-area">
+                        <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
+                        <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
+                    </div>
+                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
+                </div>
+            `;
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
-            if (sessionInfo) {
+            if(sessionInfo){
                 currentUser = sessionInfo.user;
-                userRole = sessionInfo.role;
-                await loadInitialData();
+                await initializeApp();
             }
         });
         
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
-        calculateBtn.addEventListener('click', async () => {
-            if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
-            if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
-            calculateBtn.disabled = true;
-            calculateBtn.textContent = '計算・スコア更新中...';
-            resultsContainer.innerHTML = '';
-            
-            try {
-                const scoresToUpsert = [];
-                allPublicRules.forEach(rule => {
-                    const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
-                    scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
-                });
-                if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
-                    if (scoreSaveError) throw scoreSaveError;
-                }
-                const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
-                if (rulesToCalculate.length === 0) {
-                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
+        addMajorBtn.addEventListener('click', () => {
+            const newRule = { name: '新しい学類', type: 'standard', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } } };
+            majorRules.push(newRule);
+            renderAllRules();
+        });
+
+        let draggedItem = null;
+        customMajorsContainer.addEventListener('dragstart', (e) => {
+             if (e.target.classList.contains('rule-editor')) {
+                draggedItem = e.target;
+                setTimeout(() => {
+                    if (draggedItem) draggedItem.style.opacity = '0.5';
+                }, 0);
+            }
+        });
+        customMajorsContainer.addEventListener('dragend', (e) => {
+            if(draggedItem) {
+                draggedItem.style.opacity = '1';
+                draggedItem = null;
+            }
+        });
+        customMajorsContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(customMajorsContainer, e.clientY);
+            if (draggedItem) {
+                if (afterElement == null) {
+                    customMajorsContainer.appendChild(draggedItem);
                 } else {
-                    rulesToCalculate.forEach(rule => {
-                        const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
-                        renderResultCard(rule.name, result, rule);
-                    });
+                    customMajorsContainer.insertBefore(draggedItem, afterElement);
                 }
-            } catch(error) {
-                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${error.message}</p>`;
-            } finally {
-                calculateBtn.disabled = false;
-                calculateBtn.textContent = '計算を実行';
+            }
+        });
+        customMajorsContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!draggedItem) return;
+            const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
+            const newRulesOrder = [];
+            const oldRulesMap = new Map(majorRules.map((rule, index) => {
+                const key = rule.id || `new-${index}`;
+                return [key, rule];
+            }));
+            newElements.forEach(element => {
+                const key = element.dataset.majorId;
+                if(oldRulesMap.has(key)){
+                    newRulesOrder.push(oldRulesMap.get(key));
+                }
+            });
+            majorRules = newRulesOrder;
+            renderAllRules();
+        });
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        customMajorsContainer.addEventListener('click', async (e) => {
+            const target = e.target;
+            const ruleEditor = target.closest('.rule-editor');
+            if (!ruleEditor) return;
+            if(ruleEditor.querySelector('summary').contains(target) && target.tagName === 'BUTTON') {
+                e.preventDefault();
+            }
+            if (target.classList.contains('remove-major-btn')) {
+                const ruleId = ruleEditor.dataset.majorId;
+                if (ruleId.startsWith('new-')) { ruleEditor.remove(); return; }
+                const ruleName = ruleEditor.querySelector('.major-name').value;
+                if (confirm(`「${ruleName}」を完全に削除しますか？`)) {
+                    const { error } = await supabaseClient.from('major_rules').delete().eq('id', ruleId);
+                    if (error) alert('削除に失敗: ' + error.message);
+                    else { alert('削除しました。'); await loadMajorRules(); }
+                }
+            } else if (target.classList.contains('add-group-btn')) {
+                const groupsContainer = ruleEditor.querySelector('.groups-container');
+                groupsContainer.insertAdjacentHTML('beforeend', createGroupHTML({}));
+            } else if (target.classList.contains('remove-group-btn')) {
+                target.closest('.group-box').remove();
+            } else if (target.classList.contains('remove-subject-tag')) {
+                target.parentElement.remove();
+            } else if (target.classList.contains('add-subject-to-group-btn')) {
+                const input = target.previousElementSibling;
+                const subjectName = input.value.trim();
+                if (subjectName) {
+                    const subjectsContainer = input.closest('.group-box, .rule-editor-content').querySelector('.subjects-container');
+                    const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
+                    if (!existingSubjects.includes(subjectName)) {
+                        subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
+                    }
+                    input.value = '';
+                }
+            } else if (target.classList.contains('save-one-rule-btn')) {
+                const ruleId = ruleEditor.dataset.majorId.startsWith('new-') ? null : ruleEditor.dataset.majorId;
+                const ruleData = readRuleFromDOM(ruleEditor);
+                if (!ruleData.name) { alert('学類名は必須です。'); return; }
+                let query;
+                if (ruleId) {
+                    query = supabaseClient.from('major_rules').update({ name: ruleData.name, allowed_roles: ruleData.allowed_roles, rule_data: ruleData.rule_data }).eq('id', ruleId);
+                } else {
+                    query = supabaseClient.from('major_rules').insert({ user_id: currentUser.id, name: ruleData.name, allowed_roles: ruleData.allowed_roles, rule_data: ruleData.rule_data });
+                }
+                const { error } = await query;
+                if (error) { alert('保存に失敗: ' + error.message); }
+                else { alert(`「${ruleData.name}」を保存しました。`); await loadMajorRules(); }
             }
         });
         
-        async function renderResultCard(majorName, result, rule) {
-            const isApplicable = (rule.allowed_roles || []).includes(userRole);
-            const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
-            const percentage = rule.maxPossibleScore > 0 ? (result.score / rule.maxPossibleScore) * 100 : 0;
-            let judgment = 'N/A', judgmentClass = 'judgment-E';
-            if (thresholds && thresholds.pass !== undefined && thresholds.median !== undefined) {
-                const median_thresh = thresholds.median; 
-                const pass_thresh = thresholds.pass;
-                const b_thresh = (median_thresh + pass_thresh) / 2; 
-                const d_thresh = pass_thresh - (b_thresh - pass_thresh);
-                if (result.score >= median_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
-                else if (result.score >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
-                else if (result.score >= pass_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
-                else if (result.score >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
-                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
-            }
-            
-            const card = document.createElement('div');
-            card.className = `result-card`;
-            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
-            const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
-            let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
-            
-            card.innerHTML = `
-                <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
-                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
-                <div class="details-display">
-                    <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${isApplicable ? '該当ロール' : '非該当ロール'}</span></div>
-                    <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
-                    <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
-                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
-                </div>
-                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
-            `;
-            resultsContainer.appendChild(card);
-            
-            const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
-            const now = new Date();
-            const startTime = rankingSettings.ranking_start_time ? new Date(rankingSettings.ranking_start_time) : null;
-            const endTime = rankingSettings.ranking_end_time ? new Date(rankingSettings.ranking_end_time) : null;
-            const isTimeValid = (!startTime || now >= startTime) && (!endTime || now <= endTime);
-
-            if (rankingSettings.ranking_enabled && isTimeValid) {
-                try {
-                    const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
-                    if (error) throw new Error(error.message);
-                    if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
-                    
-                    const rankData = data[0];
-                    const rankLabel = rankData.is_applicable ? '順位 (該当ロール内)' : '順位 (非該当ロール内)';
-                    
-                    rankInfoDiv.innerHTML = `
-                        <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
-                        <div class="detail-item" style="border-bottom: none;"><span class="label">${rankLabel}</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
-                    `;
-                } catch (error) {
-                    rankInfoDiv.innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
+        customMajorsContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('rule-type-select')) {
+                const ruleEditor = e.target.closest('.rule-editor');
+                const contentWrapper = ruleEditor.querySelector('.editor-content-wrapper');
+                const newType = e.target.value;
+                const tempRule = readRuleFromDOM(ruleEditor);
+                tempRule.type = newType;
+                if (newType === 'tiered') {
+                    contentWrapper.innerHTML = createTieredEditorHTML(tempRule);
+                } else {
+                    contentWrapper.innerHTML = createStandardEditorHTML(tempRule);
                 }
-            } else {
-                rankInfoDiv.innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">ランキングは現在非公開です</p>`;
             }
+        });
+
+        function readRuleFromDOM(ruleEditor) {
+            const type = ruleEditor.querySelector('.rule-type-select')?.value || 'standard';
+            let rule_data;
+            if (type === 'tiered') {
+                rule_data = {
+                    type,
+                    priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0,
+                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                    priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0,
+                    overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value),
+                    priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)),
+                    thresholds: {
+                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
+                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
+                    },
+                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0
+                };
+            } else {
+                rule_data = {
+                    type,
+                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                    otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
+                    thresholds: {
+                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
+                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
+                    },
+                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0,
+                    groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({
+                        name: groupEl.querySelector('.group-name').value.trim(),
+                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
+                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
+                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
+                    }))
+                };
+            }
+            return {
+                name: ruleEditor.querySelector('.major-name').value.trim(),
+                allowed_roles: Array.from(ruleEditor.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value),
+                rule_data
+            };
         }
     </script>
 </body>
