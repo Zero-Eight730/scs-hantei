@@ -47,7 +47,9 @@
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
-                window.location.href = 'index.html';
+                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
+                    window.location.href = 'index.html';
+                }
                 return null;
             }
             const user = session.user;
@@ -101,21 +103,19 @@
             try {
                 const scoresToUpsert = [];
                 allPublicRules.forEach(rule => {
-                    const result = calculateCustomMajor(savedSubjects, rule);
+                    const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                     scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
                 });
-
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
                     if (scoreSaveError) throw scoreSaveError;
                 }
-
                 const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
                 if (rulesToCalculate.length === 0) {
                     resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。</p>`;
                 } else {
                     rulesToCalculate.forEach(rule => {
-                        const result = calculateCustomMajor(savedSubjects, rule);
+                        const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                         renderResultCard(rule.name, result, rule);
                     });
                 }
@@ -130,19 +130,18 @@
         async function renderResultCard(majorName, result, rule) {
             const isApplicable = (rule.allowed_roles || []).includes(userRole);
             const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
-
-            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+            const percentage = rule.maxPossibleScore > 0 ? (result.score / rule.maxPossibleScore) * 100 : 0;
             let judgment = 'N/A', judgmentClass = 'judgment-E';
 
-            if (thresholds && thresholds.pass && thresholds.median) {
-                const p_plus_thresh = thresholds.median; 
-                const p_thresh = thresholds.pass;
-                const b_thresh = (p_plus_thresh + p_thresh) / 2; 
-                const d_thresh = p_thresh - (b_thresh - p_thresh);
-                if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
-                else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
-                else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
-                else if (percentage >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
+            if (thresholds && thresholds.pass !== undefined && thresholds.median !== undefined) {
+                const median_thresh = thresholds.median; 
+                const pass_thresh = thresholds.pass;
+                const b_thresh = (median_thresh + pass_thresh) / 2; 
+                const d_thresh = pass_thresh - (b_thresh - pass_thresh);
+                if (result.score >= median_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
+                else if (result.score >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
+                else if (result.score >= pass_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
+                else if (result.score >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
                 else { judgment = 'E'; judgmentClass = 'judgment-E'; }
             }
             
