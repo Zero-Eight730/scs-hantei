@@ -29,6 +29,7 @@
             <p style="text-align:center;">管理者権限を持つアカウントで、全ユーザーが利用できる共通ルールを作成・編集します。</p>
             <div id="custom-majors-container"></div>
             <button id="add-major-btn" class="btn-action" style="margin-top: 20px;">新しい学類ルールを追加</button>
+            <button id="save-order-btn" class="btn-main" style="width: 100%; margin-top: 10px; display: none;">現在の並び順を保存</button>
         </div>
     </div>
 
@@ -43,18 +44,32 @@
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
         const addMajorBtn = document.getElementById('add-major-btn');
+        const saveOrderBtn = document.getElementById('save-order-btn');
         const masterSubjectsDatalist = document.getElementById('master-subjects-list');
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'index.html'; return null; }
+            if (error || !session) {
+                window.location.href = 'index.html';
+                return null;
+            }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
-            document.getElementById('main-app').style.display = 'block';
-            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
+            
+            if (!isAdmin) {
+                alert('アクセス権限がありません。');
+                window.location.href = 'input.html';
+                return null;
+            }
+
+            const mainApp = document.getElementById('main-app');
+            if (mainApp) mainApp.style.display = 'block';
+            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            
+            document.querySelectorAll('.admin-only').forEach(link => {
+                if (isAdmin) { link.style.display = 'inline-block'; }
+            });
             return { user, isAdmin };
         }
 
@@ -83,7 +98,7 @@
             try {
                 const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data').order('sort_order');
                 if (error) throw error;
-                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data, sort_order: r.sort_order }));
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data }));
                 renderAllRules();
             } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
@@ -182,6 +197,7 @@
                 </div>
             `;
         }
+
         function createCombinedLimitHTML(limit, groups) {
             let checkboxesHTML = '';
             (groups || []).forEach(group => {
@@ -214,12 +230,11 @@
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            const newRule = { name: '新しい学類', type: 'standard', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
+            const newRule = { name: '新しい学類', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
             majorRules.push(newRule);
             renderAllRules();
         });
 
-      // --- ▼▼▼ ドラッグ＆ドロップと保存ロジックを刷新 ▼▼▼ ---
         let draggedItem = null;
         customMajorsContainer.addEventListener('dragstart', (e) => {
              if (e.target.classList.contains('rule-editor')) {
@@ -240,7 +255,8 @@
         customMajorsContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             if (!draggedItem) return;
-            saveOrderBtn.style.display = 'block'; // 並び替えが完了したら保存ボタンを表示
+            draggedItem.classList.remove('dragging');
+            saveOrderBtn.style.display = 'block'; // ★並び替え後に保存ボタンを表示
         });
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
@@ -269,18 +285,19 @@
                 } else {
                     alert('並び順を保存しました。');
                     saveOrderBtn.style.display = 'none';
-                    await loadMajorRules(); // 再読み込みして最新の状態を反映
+                    await loadMajorRules(); 
                 }
             } else {
                 alert('保存対象のルールがありません。');
                 saveOrderBtn.style.display = 'none';
             }
         });
+
         customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-            if(ruleEditor.querySelector('summary').contains(target) && target.tagName === 'BUTTON') { e.preventDefault(); }
+            if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) { e.preventDefault(); }
             
             if (target.matches('.duplicate-major-btn')) {
                 const ruleToDuplicate = readRuleFromDOM(ruleEditor);
