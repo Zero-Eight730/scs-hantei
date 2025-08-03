@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
-    <script src="common.js"></script>
-</head>
+    <script src="common.js"></script> </head>
 <body>
     <div id="main-app" class="container" style="display:none;">
         <nav>
@@ -43,7 +42,7 @@
         const logoutBtn = document.getElementById('logout-btn');
         const calculateBtn = document.getElementById('calculate-btn');
         const resultsContainer = document.getElementById('results-container');
-            
+        
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
@@ -64,21 +63,18 @@
             return { user, isAdmin, role: profile.role };
         }
         
-      async function loadInitialData() {
+        async function loadInitialData() {
             try {
                 const { data: userData, error: userError } = await supabaseClient.from('user_data').select('subjects, target_majors').eq('id', currentUser.id).single();
                 if (userError && userError.code !== 'PGRST116') throw userError;
                 savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
                 targetMajors = userData?.target_majors || [];
-
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data, sort_order').order('sort_order');
+                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data');
                 if (rulesError) throw rulesError;
                 allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name, allowed_roles: r.allowed_roles }));
-
                 const { data: settingsData, error: settingsError } = await supabaseClient.from('app_settings').select('settings').eq('id', 1).single();
                 if (settingsError) throw settingsError;
                 rankingSettings = settingsData.settings;
-
             } catch (e) {
                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${e.message || 'データの読み込みに失敗しました。'}</p>`;
                 calculateBtn.disabled = true;
@@ -99,7 +95,6 @@
         calculateBtn.addEventListener('click', async () => {
             if (savedSubjects.length === 0) { alert('計算対象の科目がありません。「成績入力」ページでデータを保存してください。'); return; }
             if (targetMajors.length === 0) { alert('計算対象の学類がありません。「志望学類登録」ページで設定してください。'); return; }
-            
             calculateBtn.disabled = true;
             calculateBtn.textContent = '計算・スコア更新中...';
             resultsContainer.innerHTML = '';
@@ -110,12 +105,10 @@
                     const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                     scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
                 });
-
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
-
                 const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
                 if (rulesToCalculate.length === 0) {
                     resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
@@ -138,7 +131,6 @@
             const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
             const percentage = rule.maxPossibleScore > 0 ? (result.score / rule.maxPossibleScore) * 100 : 0;
             let judgment = 'N/A', judgmentClass = 'judgment-E';
-
             if (thresholds && thresholds.pass !== undefined && thresholds.median !== undefined) {
                 const median_thresh = thresholds.median; 
                 const pass_thresh = thresholds.pass;
