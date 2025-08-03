@@ -124,8 +124,7 @@
             majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
             majorDetails.draggable = true;
 
-            const isTiered = rule.type === 'tiered';
-            let specificEditorHTML = isTiered ? createTieredEditorHTML(rule) : createStandardEditorHTML(rule);
+            const editorHTML = createStandardEditorHTML(rule);
 
             majorDetails.innerHTML = `
                 <summary>
@@ -135,12 +134,9 @@
                 <div class="rule-editor-content">
                     <div class="rule-editor-header">
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
-                        <select class="rule-type-select">
-                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (グループ指定)</option>
-                        </select>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
-                    <div class="editor-content-wrapper">${specificEditorHTML}</div>
+                    <div class="editor-content-wrapper">${editorHTML}</div>
                 </div>
             `;
             return majorDetails;
@@ -161,8 +157,16 @@
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
                     <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
-                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" placeholder="合格最低点(%)">
-                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" placeholder="中央値(%)">
+                </div>
+                <h5>判定基準 (該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点(%)">
+                    <input type="number" class="median-threshold-app" value="${rule.thresholds?.applicable?.median || ''}" placeholder="中央値(%)">
+                </div>
+                <h5>判定基準 (非該当ロール用)</h5>
+                <div class="rule-settings-grid">
+                     <input type="number" class="pass-threshold-nonapp" value="${rule.thresholds?.non_applicable?.pass || ''}" placeholder="合格最低点(%)">
+                    <input type="number" class="median-threshold-nonapp" value="${rule.thresholds?.non_applicable?.median || ''}" placeholder="中央値(%)">
                 </div>
                 <div class="groups-container">${groupsHTML}</div>
                 <button class="btn-add add-group-btn">科目グループを追加</button>
@@ -170,37 +174,8 @@
             `;
         }
         
-        function createTieredEditorHTML(rule) {
-            let keywordsHTML = (rule.priorityKeywords || []).map(name => `<div class="subject-tag">${name}<span class="remove-subject-tag">&times;</span></div>`).join('');
-            const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
-            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
-            for (const [roleKey, roleName] of Object.entries(roles)) {
-                const isChecked = (rule.allowed_roles || []).includes(roleKey);
-                rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
-            }
-            rolesHTML += '</div>';
-
-            return `
-                 ${rolesHTML}
-                 <div class="rule-settings-grid">
-                    <input type="number" class="priority-credit-cap" value="${rule.priorityCreditCap || '18'}" placeholder="重点科目上限">
-                    <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
-                    <input type="number" class="priority-weight" value="${rule.priorityWeight || '2.0'}" step="0.1" placeholder="重点重み (例: 2.0)">
-                    <input type="number" class="overflow-weight" value="${rule.overflowWeight === undefined ? '0.1' : rule.overflowWeight}" step="0.1" placeholder="超過時重み (例: 0.1)">
-                 </div>
-                 <h5>重点科目キーワード（部分一致）</h5>
-                 <div class="subjects-container">${keywordsHTML}</div>
-                 <div class="subject-add-area">
-                    <input type="text" class="new-subject-name" placeholder="キーワード...">
-                    <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                 </div>
-                 <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
-            `;
-        }
-        
         function createGroupHTML(group) {
-            let subjectsHTML = '';
-            (group.subjects || []).forEach(subjectName => {
+            let subjectsHTML = (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
             return `
@@ -233,7 +208,7 @@
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            const newRule = { name: '', type: 'standard', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 80, medianThreshold: 90, allowed_roles: [] };
+            const newRule = { name: '新しい学類', type: 'standard', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } } };
             majorRules.push(newRule);
             renderAllRules();
         });
