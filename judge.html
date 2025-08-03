@@ -20,7 +20,7 @@
             <a href="admin-settings.html" class="admin-only">公開設定</a>
             <a href="account.html">アカウント</a>
         </nav>
-        <div class="user-status">
+       <div class="user-status">
              <span id="user-display"></span>
              <button id="logout-btn" class="btn-danger" style="padding: 5px 10px; font-size: 14px;">ログアウト</button>
         </div>
@@ -33,6 +33,7 @@
     </div>
     <script>
         let currentUser = null;
+        let userRole = 'user';
         let savedSubjects = [];
         let allPublicRules = [];
         let targetMajors = [];
@@ -46,9 +47,7 @@
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) {
-                if (window.location.pathname !== '/index.html' && window.location.pathname !== '/register.html') {
-                    window.location.href = 'index.html';
-                }
+                window.location.href = 'index.html';
                 return null;
             }
             const user = session.user;
@@ -63,7 +62,7 @@
                     link.style.display = 'inline-block';
                 }
             });
-            return { user, isAdmin };
+            return { user, isAdmin, role: profile.role };
         }
         
         async function loadInitialData() {
@@ -91,10 +90,11 @@
             const sessionInfo = await setupUserInterface();
             if (sessionInfo) {
                 currentUser = sessionInfo.user;
+                userRole = sessionInfo.role;
                 await loadInitialData();
             }
         });
-
+        
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         calculateBtn.addEventListener('click', async () => {
@@ -113,7 +113,7 @@
                 });
 
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
                     if (scoreSaveError) throw scoreSaveError;
                 }
 
@@ -127,7 +127,7 @@
                     });
                 }
             } catch(error) {
-                resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">計算またはスコア更新中にエラーが発生しました: ${error.message}</p>`;
+                 resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">計算またはスコア更新中にエラーが発生しました: ${error.message}</p>`;
             } finally {
                 calculateBtn.disabled = false;
                 calculateBtn.textContent = '計算を実行';
@@ -135,11 +135,17 @@
         });
         
         async function renderResultCard(majorName, result, rule) {
+            const isApplicable = (rule.allowed_roles || []).includes(userRole);
+            const thresholds = isApplicable ? rule.thresholds.applicable : rule.thresholds.non_applicable;
+
             const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
             let judgment = 'N/A', judgmentClass = 'judgment-E';
-            if (rule.passThreshold && rule.medianThreshold) {
-                const p_plus_thresh = rule.medianThreshold; const p_thresh = rule.passThreshold;
-                const b_thresh = (p_plus_thresh + p_thresh) / 2; const d_thresh = p_thresh - (b_thresh - p_thresh);
+
+            if (thresholds && thresholds.pass && thresholds.median) {
+                const p_plus_thresh = thresholds.median; 
+                const p_thresh = thresholds.pass;
+                const b_thresh = (p_plus_thresh + p_thresh) / 2; 
+                const d_thresh = p_thresh - (b_thresh - p_thresh);
                 if (percentage >= p_plus_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
                 else if (percentage >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
                 else if (percentage >= p_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
@@ -157,9 +163,10 @@
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
                 <div class="details-display">
+                    <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${isApplicable ? '該当ロール' : '非該当ロール'}</span></div>
                     <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
                     <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
-                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位情報を取得中...</p></div>
+                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
                 </div>
                 <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
             `;
@@ -181,7 +188,6 @@
                     const rankLabel = rankData.is_applicable ? '順位 (該当ロール内)' : '順位 (非該当ロール内)';
                     
                     rankInfoDiv.innerHTML = `
-                        <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${rankData.is_applicable ? '該当ロール' : '非該当ロール'}</span></div>
                         <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
                         <div class="detail-item" style="border-bottom: none;"><span class="label">${rankLabel}</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
                     `;
