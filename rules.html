@@ -121,9 +121,8 @@
             return majorDetails;
         }
 
-        function createEditorHTML(rule) {
-            let groupsHTML = (rule.groups || []).map(createGroupHTML).join('');
-            let combinedLimitsHTML = (rule.combinedLimits || []).map(limit => createCombinedLimitHTML(limit, rule.groups || [])).join('');
+        function createTieredEditorHTML(rule) {
+            let keywordsHTML = (rule.priorityKeywords || []).map(name => `<div class="subject-tag">${name}<span class="remove-subject-tag">&times;</span></div>`).join('');
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
             let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
             for (const [roleKey, roleName] of Object.entries(roles)) {
@@ -131,12 +130,16 @@
                 rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
             }
             rolesHTML += '</div>';
-             return `
-                ${rolesHTML}
-                <div class="rule-settings-grid">
+
+            return `
+                 ${rolesHTML}
+                 <div class="rule-settings-grid">
+                    <input type="number" class="priority-credit-cap" value="${rule.priorityCreditCap || '18'}" placeholder="重点科目上限">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
-                </div>
+                    <input type="number" class="priority-weight" value="${rule.priorityWeight || '2.0'}" step="0.1" placeholder="重み2の科目の重み">
+                    <input type="number" class="other-priority-cap" value="${rule.otherPriorityCap === undefined ? '4' : rule.otherPriorityCap}" placeholder="重み1の上限単位数">
+                    <input type="number" class="overflow-weight" value="${rule.overflowWeight === undefined ? '0.1' : rule.overflowWeight}" step="0.1" placeholder="超過時重み">
+                 </div>
                 <h5>判定基準 (該当ロール用)</h5>
                 <div class="rule-settings-grid">
                      <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点">
@@ -151,16 +154,13 @@
                 <div class="rule-settings-grid">
                     <input type="number" class="max-possible-score" value="${rule.maxPossibleScore || ''}" placeholder="満点">
                 </div>
-                <hr>
-                <h3>科目グループ (上にあるほど優先)</h3>
-                <div class="groups-container">${groupsHTML}</div>
-                <button class="btn-add add-group-btn">科目グループを追加</button>
-                <hr>
-                <h3>科目グループ合計の上限設定</h3>
-                <div class="combined-limits-container">${combinedLimitsHTML}</div>
-                <button class="btn-add add-combined-limit-btn">新しい合計上限を追加</button>
-                <hr>
-                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
+                 <h5>重み${rule.priorityWeight || '2.0'}が適用される科目（個別指定）</h5>
+                 <div class="subjects-container">${keywordsHTML}</div>
+                 <div class="subject-add-area">
+                    <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
+                    <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
+                 </div>
+                 <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
             `;
         }
         
@@ -320,11 +320,26 @@
         });
         
         function readRuleFromDOM(ruleEditor) {
-            return {
-                id: ruleEditor.dataset.majorId.startsWith('new-') ? null : ruleEditor.dataset.majorId,
-                name: ruleEditor.querySelector('.major-name').value.trim(),
-                allowed_roles: Array.from(ruleEditor.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value),
-                rule_data: {
+            const type = ruleEditor.querySelector('.rule-type-select')?.value || 'standard';
+            let rule_data;
+            if (type === 'tiered') {
+                 rule_data = {
+                    type,
+                    priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0,
+                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                    priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0,
+                    otherPriorityCap: parseFloat(ruleEditor.querySelector('.other-priority-cap').value) || 0,
+                    overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value),
+                    priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)),
+                    thresholds: {
+                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
+                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
+                    },
+                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0
+                };
+            } else {
+                 rule_data = {
+                    type,
                     totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
                     otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
                     thresholds: {
@@ -338,7 +353,12 @@
                         cap: parseFloat(limitEl.querySelector('.combined-limit-cap').value) || 0,
                         groupNames: Array.from(limitEl.querySelectorAll('.combined-group-checkbox:checked')).map(cb => cb.value)
                     }))
-                }
+                };
+            }
+            return {
+                name: ruleEditor.querySelector('.major-name').value.trim(),
+                allowed_roles: Array.from(ruleEditor.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value),
+                rule_data
             };
         }
     </script>
