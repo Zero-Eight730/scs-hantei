@@ -104,7 +104,6 @@
             const majorDetails = document.createElement('details');
             majorDetails.className = 'rule-editor';
             majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
-            majorDetails.dataset.index = majorIndex; // Add index for reordering
             majorDetails.draggable = true;
             const editorHTML = createEditorHTML(rule);
             majorDetails.innerHTML = `
@@ -138,6 +137,7 @@
                 ${rolesHTML}
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
                     <input type="number" class="other-cap" value="${rule.otherCap || '0'}" placeholder="その他単位数上限 (0=無制限)">
                 </div>
                 <h5>判定基準 (該当ロール用)</h5>
@@ -261,9 +261,13 @@
             newElements.forEach((element, index) => {
                 const ruleId = element.dataset.majorId;
                 if (ruleId && !ruleId.startsWith('new-')) {
+                    const ruleData = readRuleFromDOM(element); // UIから全データを読み取る
                     updates.push({
                         id: ruleId,
-                        sort_order: index
+                        name: ruleData.name, // nameを含める
+                        allowed_roles: ruleData.allowed_roles, // allowed_rolesを含める
+                        rule_data: ruleData.rule_data, // rule_dataを含める
+                        sort_order: index // sort_orderを更新
                     });
                 }
             });
@@ -275,9 +279,10 @@
                 } else {
                     alert('並び順を保存しました。');
                     saveOrderBtn.style.display = 'none';
-                    await loadMajorRules();
+                    await loadMajorRules(); 
                 }
             } else {
+                alert('並び順を保存する対象の、保存済みルールがありません。');
                 saveOrderBtn.style.display = 'none';
             }
         });
@@ -290,7 +295,7 @@
             
             if (target.matches('.duplicate-major-btn')) {
                 const ruleToDuplicate = readRuleFromDOM(ruleEditor);
-                delete ruleToDuplicate.id;
+                delete ruleToDuplicate.id; 
                 ruleToDuplicate.name = `${ruleToDuplicate.name} (コピー)`;
                 majorRules.push(ruleToDuplicate);
                 renderAllRules();
@@ -303,8 +308,8 @@
             } else if (target.matches('.remove-major-btn')) {
                 const ruleId = ruleEditor.dataset.majorId;
                 if (ruleId.startsWith('new-')) {
-                    const index = parseInt(ruleId.replace('new-', ''));
-                    majorRules.splice(index, 1);
+                    const indexToRemove = parseInt(ruleId.replace('new-', ''));
+                    majorRules.splice(indexToRemove, 1);
                     renderAllRules();
                     return;
                 }
