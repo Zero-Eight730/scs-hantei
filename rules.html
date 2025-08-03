@@ -129,10 +129,9 @@
                     <div class="rule-editor-header">
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
                         <select class="rule-type-select">
-                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (グループ指定)</option>
+                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (個別指定)</option>
                             <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (重み2/1/超過)</option>
                         </select>
-                        <button class="btn-action duplicate-major-btn">複製</button>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
                     <div class="editor-content-wrapper">${specificEditorHTML}</div>
@@ -261,13 +260,13 @@
              if (e.target.classList.contains('rule-editor')) {
                 draggedItem = e.target;
                 setTimeout(() => {
-                    if (draggedItem) draggedItem.style.opacity = '0.5';
+                    if (draggedItem) draggedItem.classList.add('dragging');
                 }, 0);
             }
         });
         customMajorsContainer.addEventListener('dragend', (e) => {
             if(draggedItem) {
-                draggedItem.style.opacity = '1';
+                draggedItem.classList.remove('dragging');
                 draggedItem = null;
             }
         });
@@ -285,6 +284,7 @@
         customMajorsContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             if (!draggedItem) return;
+            draggedItem.classList.remove('dragging');
             const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
             const newRulesOrder = [];
             const oldRulesMap = new Map(majorRules.map((rule, index) => {
@@ -320,19 +320,7 @@
             if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) {
                 e.preventDefault();
             }
-            
-            if (target.classList.contains('duplicate-major-btn')) {
-                const ruleId = ruleEditor.dataset.majorId;
-                const ruleToDuplicate = majorRules.find(r => (r.id || `new-${majorRules.indexOf(r)}`) === ruleId);
-                if (ruleToDuplicate) {
-                    const newRule = JSON.parse(JSON.stringify(ruleToDuplicate)); // Deep copy
-                    delete newRule.id; // Remove ID to make it a new entry
-                    newRule.name = `${newRule.name} (コピー)`;
-                    newRule.userId = currentUser.id;
-                    majorRules.push(newRule);
-                    renderAllRules();
-                }
-            } else if (target.classList.contains('remove-major-btn')) {
+            if (target.classList.contains('remove-major-btn')) {
                 const ruleId = ruleEditor.dataset.majorId;
                 if (ruleId.startsWith('new-')) { ruleEditor.remove(); return; }
                 const ruleName = ruleEditor.querySelector('.major-name').value;
@@ -394,9 +382,36 @@
             const type = ruleEditor.querySelector('.rule-type-select')?.value || 'standard';
             let rule_data;
             if (type === 'tiered') {
-                 rule_data = { type, priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0, totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0, overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value), priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)), thresholds: { applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 }, non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 } }, maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0 };
+                 rule_data = {
+                    type,
+                    priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0,
+                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                    priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0,
+                    overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value),
+                    priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)),
+                    thresholds: {
+                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
+                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
+                    },
+                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0
+                };
             } else {
-                 rule_data = { type, totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0, otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0, thresholds: { applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 }, non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 } }, maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0, groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({ name: groupEl.querySelector('.group-name').value.trim(), weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0, cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0, subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) })) };
+                 rule_data = {
+                    type,
+                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
+                    otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
+                    thresholds: {
+                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
+                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
+                    },
+                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0,
+                    groups: Array.from(ruleEditor.querySelectorAll('.group-box')).map(groupEl => ({
+                        name: groupEl.querySelector('.group-name').value.trim(),
+                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
+                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
+                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
+                    }))
+                };
             }
             return {
                 name: ruleEditor.querySelector('.major-name').value.trim(),
