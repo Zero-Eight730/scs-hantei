@@ -47,27 +47,14 @@
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'index.html';
-                return null;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return null; }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            
-            if (!isAdmin) {
-                alert('アクセス権限がありません。');
-                window.location.href = 'input.html';
-                return null;
-            }
-
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            
-            document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) { link.style.display = 'inline-block'; }
-            });
+            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
             return { user, isAdmin };
         }
 
@@ -94,9 +81,9 @@
 
         async function loadMajorRules() {
             try {
-                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data');
+                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data').order('sort_order');
                 if (error) throw error;
-                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data }));
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data, sort_order: r.sort_order }));
                 renderAllRules();
             } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
@@ -116,10 +103,7 @@
             majorDetails.className = 'rule-editor';
             majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
             majorDetails.draggable = true;
-
-            const isTiered = rule.type === 'tiered';
-            let specificEditorHTML = isTiered ? createTieredEditorHTML(rule) : createStandardEditorHTML(rule);
-
+            const editorHTML = createEditorHTML(rule);
             majorDetails.innerHTML = `
                 <summary>
                     <span class="drag-handle">⠿</span>
@@ -128,20 +112,16 @@
                 <div class="rule-editor-content">
                     <div class="rule-editor-header">
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
-                        <select class="rule-type-select">
-                            <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (個別指定)</option>
-                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (重み2/1/超過)</option>
-                        </select>
                         <button class="btn-action duplicate-major-btn">複製</button>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
-                    <div class="editor-content-wrapper">${specificEditorHTML}</div>
+                    <div class="editor-content-wrapper">${editorHTML}</div>
                 </div>
             `;
             return majorDetails;
         }
 
-        function createStandardEditorHTML(rule) {
+        function createEditorHTML(rule) {
             let groupsHTML = (rule.groups || []).map(createGroupHTML).join('');
             let combinedLimitsHTML = (rule.combinedLimits || []).map(limit => createCombinedLimitHTML(limit, rule.groups || [])).join('');
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
@@ -151,12 +131,10 @@
                 rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
             }
             rolesHTML += '</div>';
-
              return `
                 ${rolesHTML}
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
                 </div>
                 <h5>判定基準 (該当ロール用)</h5>
                 <div class="rule-settings-grid">
@@ -174,6 +152,7 @@
                 </div>
                 <hr>
                 <h3>科目グループ (上にあるほど優先)</h3>
+                <p style="font-size:0.9em; color:#666;">科目リストを空にすると、そのグループは「その他」として扱われ、どのグループにも属さない残りの科目がすべて対象になります。</p>
                 <div class="groups-container">${groupsHTML}</div>
                 <button class="btn-add add-group-btn">科目グループを追加</button>
                 <hr>
@@ -185,55 +164,12 @@
             `;
         }
         
-        function createTieredEditorHTML(rule) {
-            let keywordsHTML = (rule.priorityKeywords || []).map(name => `<div class="subject-tag">${name}<span class="remove-subject-tag">&times;</span></div>`).join('');
-            const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
-            let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
-            for (const [roleKey, roleName] of Object.entries(roles)) {
-                const isChecked = (rule.allowed_roles || []).includes(roleKey);
-                rolesHTML += `<label><input type="checkbox" class="role-checkbox" value="${roleKey}" ${isChecked ? 'checked' : ''}> ${roleName}</label>`;
-            }
-            rolesHTML += '</div>';
-
-            return `
-                 ${rolesHTML}
-                 <div class="rule-settings-grid">
-                    <input type="number" class="priority-credit-cap" value="${rule.priorityCreditCap || '18'}" placeholder="重点科目上限">
-                    <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
-                    <input type="number" class="priority-weight" value="${rule.priorityWeight || '2.0'}" step="0.1" placeholder="重み2の科目の重み">
-                    <input type="number" class="other-priority-cap" value="${rule.otherPriorityCap === undefined ? '4' : rule.otherPriorityCap}" placeholder="重み1の上限単位数">
-                    <input type="number" class="overflow-weight" value="${rule.overflowWeight === undefined ? '0.1' : rule.overflowWeight}" step="0.1" placeholder="超過時重み">
-                 </div>
-                <h5>判定基準 (該当ロール用)</h5>
-                <div class="rule-settings-grid">
-                     <input type="number" class="pass-threshold-app" value="${rule.thresholds?.applicable?.pass || ''}" placeholder="合格最低点">
-                    <input type="number" class="median-threshold-app" value="${rule.thresholds?.applicable?.median || ''}" placeholder="中央値">
-                </div>
-                <h5>判定基準 (非該当ロール用)</h5>
-                <div class="rule-settings-grid">
-                     <input type="number" class="pass-threshold-nonapp" value="${rule.thresholds?.non_applicable?.pass || ''}" placeholder="合格最低点">
-                    <input type="number" class="median-threshold-nonapp" value="${rule.thresholds?.non_applicable?.median || ''}" placeholder="中央値">
-                </div>
-                 <h5>満点</h5>
-                <div class="rule-settings-grid">
-                    <input type="number" class="max-possible-score" value="${rule.maxPossibleScore || ''}" placeholder="満点">
-                </div>
-                 <h5>重み2が適用される科目（キーワード部分一致）</h5>
-                 <div class="subjects-container">${keywordsHTML}</div>
-                 <div class="subject-add-area">
-                    <input type="text" class="new-subject-name" placeholder="キーワード...">
-                    <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                 </div>
-                 <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
-            `;
-        }
-        
         function createGroupHTML(group) {
             const subjectsHTML = (group.subjects || []).map(subjectName => `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`).join('');
             return `
                 <div class="group-box">
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名 (例: 重点科目, その他)">
                         <input type="number" class="group-weight" value="${group.weight || '1.0'}" step="0.1" placeholder="重み">
                         <input type="number" class="group-cap" value="${group.cap || '0'}" placeholder="単位数上限 (0=無制限)">
                         <button class="btn-danger remove-group-btn">削除</button>
@@ -246,7 +182,6 @@
                 </div>
             `;
         }
-        
         function createCombinedLimitHTML(limit, groups) {
             let checkboxesHTML = '';
             (groups || []).forEach(group => {
@@ -345,7 +280,7 @@
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
             if (!ruleEditor) return;
-            if(ruleEditor.querySelector('summary').contains(target) && (target.tagName === 'BUTTON' || target.tagName === 'SELECT')) { e.preventDefault(); }
+            if(ruleEditor.querySelector('summary').contains(target) && target.tagName === 'BUTTON') { e.preventDefault(); }
             
             if (target.matches('.duplicate-major-btn')) {
                 const ruleToDuplicate = readRuleFromDOM(ruleEditor);
@@ -379,7 +314,7 @@
                 const input = target.previousElementSibling;
                 const subjectName = input.value.trim();
                 if (subjectName) {
-                    const subjectsContainer = input.closest('.group-box, .rule-editor-content').querySelector('.subjects-container');
+                    const subjectsContainer = input.closest('.group-box').querySelector('.subjects-container');
                     const existingSubjects = Array.from(subjectsContainer.querySelectorAll('.subject-tag')).map(t => t.textContent.slice(0, -1));
                     if (!existingSubjects.includes(subjectName)) {
                         subjectsContainer.insertAdjacentHTML('beforeend', `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`);
@@ -402,45 +337,14 @@
             }
         });
         
-        customMajorsContainer.addEventListener('change', (e) => {
-            if (e.target.classList.contains('rule-type-select')) {
-                const ruleEditor = e.target.closest('.rule-editor');
-                const contentWrapper = ruleEditor.querySelector('.editor-content-wrapper');
-                const newType = e.target.value;
-                const tempRule = readRuleFromDOM(ruleEditor);
-                tempRule.type = newType;
-                if (newType === 'tiered') {
-                    contentWrapper.innerHTML = createTieredEditorHTML(tempRule);
-                } else {
-                    contentWrapper.innerHTML = createStandardEditorHTML(tempRule);
-                }
-            }
-        });
-
         function readRuleFromDOM(ruleEditor) {
-            const type = ruleEditor.querySelector('.rule-type-select')?.value || 'standard';
-            let rule_data;
-            if (type === 'tiered') {
-                 rule_data = {
-                    type,
-                    priorityCreditCap: parseFloat(ruleEditor.querySelector('.priority-credit-cap').value) || 0,
-                    totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
-                    priorityWeight: parseFloat(ruleEditor.querySelector('.priority-weight').value) || 0,
-                    otherPriorityCap: parseFloat(ruleEditor.querySelector('.other-priority-cap').value) || 0,
-                    overflowWeight: parseFloat(ruleEditor.querySelector('.overflow-weight').value),
-                    priorityKeywords: Array.from(ruleEditor.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)),
-                    thresholds: {
-                        applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
-                        non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
-                    },
-                    maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0
-                };
-            } else {
-                 rule_data = {
-                    type,
+            return {
+                id: ruleEditor.dataset.majorId.startsWith('new-') ? null : ruleEditor.dataset.majorId,
+                name: ruleEditor.querySelector('.major-name').value.trim(),
+                allowed_roles: Array.from(ruleEditor.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value),
+                rule_data: {
                     totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
                     otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
-                    otherCap: parseFloat(ruleEditor.querySelector('.other-cap').value) || 0,
                     thresholds: {
                         applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
                         non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
@@ -452,12 +356,7 @@
                         cap: parseFloat(limitEl.querySelector('.combined-limit-cap').value) || 0,
                         groupNames: Array.from(limitEl.querySelectorAll('.combined-group-checkbox:checked')).map(cb => cb.value)
                     }))
-                };
-            }
-            return {
-                name: ruleEditor.querySelector('.major-name').value.trim(),
-                allowed_roles: Array.from(ruleEditor.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value),
-                rule_data
+                }
             };
         }
     </script>
