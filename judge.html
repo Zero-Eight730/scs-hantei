@@ -71,7 +71,7 @@
                 savedSubjects = (userData?.subjects || []).map(s => ({ name: s.name, credits: parseFloat(s.credits), grade: parseFloat(s.grade) })).filter(s => s.name && !isNaN(s.credits) && !isNaN(s.grade));
                 targetMajors = userData?.target_majors || [];
 
-                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data');
+                const { data: rulesData, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles, rule_data').order('sort_order');
                 if (rulesError) throw rulesError;
                 allPublicRules = rulesData.map(r => ({ ...r.rule_data, name: r.name, allowed_roles: r.allowed_roles }));
 
@@ -112,7 +112,7 @@
                 });
 
                 if (scoresToUpsert.length > 0) {
-                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert);
+                    const { error: scoreSaveError } = await supabaseClient.from('user_scores').upsert(scoresToUpsert, { onConflict: 'id, major' });
                     if (scoreSaveError) throw scoreSaveError;
                 }
 
@@ -134,57 +134,53 @@
         });
         
         async function renderResultCard(majorName, result, rule) {
+            const isApplicable = (rule.allowed_roles || []).includes(userRole);
+            const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
+            
+            // ▼▼▼ ここからが修正箇所です ▼▼▼
+            // 分母を、ルール設定の「満点」から、計算に使われた科目の「最大可能スコア」に変更
+            const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+            // ▲▲▲ ここまで ▲▲▲
+
+            let judgment = 'N/A', judgmentClass = 'judgment-E';
+            if (thresholds && thresholds.pass !== undefined && thresholds.median !== undefined) {
+                const median_thresh = thresholds.median; 
+                const pass_thresh = thresholds.pass;
+                const b_thresh = (median_thresh + pass_thresh) / 2; 
+                const d_thresh = pass_thresh - (b_thresh - pass_thresh);
+                if (result.score >= median_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
+                else if (result.score >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
+                else if (result.score >= pass_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
+                else if (result.score >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
+                else { judgment = 'E'; judgmentClass = 'judgment-E'; }
+            }
+            
             const card = document.createElement('div');
             card.className = `result-card`;
+            card.style.borderTopColor = `var(--grade-${judgment}-color)`;
             const safeMajorName = (majorName || 'unknown').replace(/[\s()（）]/g, '');
-            const percentage = rule.maxPossibleScore > 0 ? (result.score / rule.maxPossibleScore) * 100 : 0;
             let breakdownHTML = result.breakdown.length > 0 ? '<ul>' + result.breakdown.map(item => { const className = item.status === 'included' ? 'status-included' : 'status-excluded'; const text = item.status === 'included' ? item.text : `${item.text} - ${item.reason}`; return `<li class="${className}">${text}</li>`; }).join('') + '</ul>' : '<p>計算対象なし</p>';
-
-            const now = new Date();
-            const startTime = rankingSettings.ranking_start_time ? new Date(rankingSettings.ranking_start_time) : null;
-            const endTime = rankingSettings.ranking_end_time ? new Date(rankingSettings.ranking_end_time) : null;
-            const isRankingVisible = rankingSettings.ranking_enabled && (!startTime || now >= startTime) && (!endTime || now <= endTime);
-
-            let judgmentHTML = '';
-            let rankInfoHTML = '';
-
-            if (isRankingVisible) {
-                const isApplicable = (rule.allowed_roles || []).includes(userRole);
-                const thresholds = isApplicable ? rule.thresholds?.applicable : rule.thresholds?.non_applicable;
-                let judgment = 'N/A', judgmentClass = 'judgment-E';
-                if (thresholds && thresholds.pass !== undefined && thresholds.median !== undefined) {
-                    const median_thresh = thresholds.median; 
-                    const pass_thresh = thresholds.pass;
-                    const b_thresh = (median_thresh + pass_thresh) / 2; 
-                    const d_thresh = pass_thresh - (b_thresh - pass_thresh);
-                    if (result.score >= median_thresh) { judgment = 'A'; judgmentClass = 'judgment-A'; } 
-                    else if (result.score >= b_thresh) { judgment = 'B'; judgmentClass = 'judgment-B'; } 
-                    else if (result.score >= pass_thresh) { judgment = 'C'; judgmentClass = 'judgment-C'; } 
-                    else if (result.score >= d_thresh) { judgment = 'D'; judgmentClass = 'judgment-D'; } 
-                    else { judgment = 'E'; judgmentClass = 'judgment-E'; }
-                }
-                card.style.borderTopColor = `var(--grade-${judgment}-color)`;
-                judgmentHTML = `<div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>`;
-                rankInfoHTML = `<div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>`;
-            } else {
-                card.style.borderTopColor = '#6c757d';
-                judgmentHTML = ``; // 判定は非表示
-                rankInfoHTML = `<div class="rank-info"><p style="font-size: 0.9em; color: var(--text-muted);">判定・ランキングは現在非公開です</p></div>`;
-            }
-
+            
             card.innerHTML = `
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
-                ${judgmentHTML}
+                <div class="judgment-display"><div class="judgment-circle grade-${judgment}"><span>${judgment}</span></div></div>
                 <div class="details-display">
+                    <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${isApplicable ? '該当ロール' : '非該当ロール'}</span></div>
                     <div class="detail-item"><span class="label">移行点</span><span class="value">${result.score.toFixed(2)}</span></div>
                     <div class="detail-item"><span class="label">得点率</span><span class="value">${percentage.toFixed(2)} %</span></div>
-                    ${rankInfoHTML}
+                    <div class="rank-info" id="rank-${safeMajorName}"><p>順位を読み込み中...</p></div>
                 </div>
                 <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
             `;
             resultsContainer.appendChild(card);
             
-            if (isRankingVisible) {
+            const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
+            const now = new Date();
+            const startTime = rankingSettings.ranking_start_time ? new Date(rankingSettings.ranking_start_time) : null;
+            const endTime = rankingSettings.ranking_end_time ? new Date(rankingSettings.ranking_end_time) : null;
+            const isTimeValid = (!startTime || now >= startTime) && (!endTime || now <= endTime);
+
+            if (rankingSettings.ranking_enabled && isTimeValid) {
                 try {
                     const { data, error } = await supabaseClient.rpc('get_rank_and_deviation', { major_name: majorName });
                     if (error) throw new Error(error.message);
@@ -193,20 +189,15 @@
                     const rankData = data[0];
                     const rankLabel = rankData.is_applicable ? '順位 (該当ロール内)' : '順位 (非該当ロール内)';
                     
-                    const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
-                    if (rankInfoDiv) {
-                        rankInfoDiv.innerHTML = `
-                            <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${rankData.is_applicable ? '該当ロール' : '非該当ロール'}</span></div>
-                            <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
-                            <div class="detail-item" style="border-bottom: none;"><span class="label">${rankLabel}</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
-                        `;
-                    }
+                    rankInfoDiv.innerHTML = `
+                        <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
+                        <div class="detail-item" style="border-bottom: none;"><span class="label">${rankLabel}</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
+                    `;
                 } catch (error) {
-                    const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
-                    if (rankInfoDiv) {
-                        rankInfoDiv.innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
-                    }
+                    rankInfoDiv.innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">${error.message}</p>`;
                 }
+            } else {
+                rankInfoDiv.innerHTML = `<p style="font-size: 0.9em; color: var(--text-muted);">ランキングは現在非公開です</p>`;
             }
         }
     </script>
