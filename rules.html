@@ -284,6 +284,7 @@
             renderAllRules();
         });
 
+      // --- ▼▼▼ ドラッグ＆ドロップと保存ロジックを刷新 ▼▼▼ ---
         let draggedItem = null;
         customMajorsContainer.addEventListener('dragstart', (e) => {
              if (e.target.classList.contains('rule-editor')) {
@@ -304,16 +305,7 @@
         customMajorsContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             if (!draggedItem) return;
-            draggedItem.classList.remove('dragging');
-            const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
-            const newRulesOrder = [];
-            const oldRulesMap = new Map(majorRules.map((rule, index) => [`${rule.id || 'new-' + index}`, rule]));
-            newElements.forEach(element => {
-                const key = element.dataset.majorId;
-                if(oldRulesMap.has(key)){ newRulesOrder.push(oldRulesMap.get(key)); }
-            });
-            majorRules = newRulesOrder;
-            renderAllRules();
+            saveOrderBtn.style.display = 'block'; // 並び替えが完了したら保存ボタンを表示
         });
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
@@ -325,6 +317,30 @@
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
 
+        saveOrderBtn.addEventListener('click', async () => {
+            const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
+            const updates = newElements.map((element, index) => {
+                const ruleId = element.dataset.majorId;
+                if (ruleId && !ruleId.startsWith('new-')) {
+                    return { id: ruleId, sort_order: index };
+                }
+                return null;
+            }).filter(Boolean);
+
+            if (updates.length > 0) {
+                const { error } = await supabaseClient.from('major_rules').upsert(updates);
+                if (error) {
+                    alert('並び順の保存に失敗しました: ' + error.message);
+                } else {
+                    alert('並び順を保存しました。');
+                    saveOrderBtn.style.display = 'none';
+                    await loadMajorRules(); // 再読み込みして最新の状態を反映
+                }
+            } else {
+                alert('保存対象のルールがありません。');
+                saveOrderBtn.style.display = 'none';
+            }
+        });
         customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
             const ruleEditor = target.closest('.rule-editor');
