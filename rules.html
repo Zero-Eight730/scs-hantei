@@ -138,6 +138,7 @@
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
                     <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
+                    <input type="number" class="other-cap" value="${rule.otherCap || '0'}" placeholder="その他単位数上限 (0=無制限)">
                 </div>
                 <h5>判定基準 (該当ロール用)</h5>
                 <div class="rule-settings-grid">
@@ -215,7 +216,7 @@
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
 
         addMajorBtn.addEventListener('click', () => {
-            const newRule = { name: '新しい学類', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
+            const newRule = { name: '新しい学類', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, otherCap: 0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
             majorRules.push(newRule);
             renderAllRules();
         });
@@ -255,13 +256,21 @@
 
         saveOrderBtn.addEventListener('click', async () => {
             const newElements = Array.from(customMajorsContainer.querySelectorAll('.rule-editor'));
-            const updates = newElements.map((element, index) => {
+            const updates = [];
+            
+            newElements.forEach((element, index) => {
                 const ruleId = element.dataset.majorId;
                 if (ruleId && !ruleId.startsWith('new-')) {
-                    return { id: ruleId, sort_order: index };
+                    const ruleData = readRuleFromDOM(element);
+                    updates.push({
+                        id: ruleId,
+                        name: ruleData.name,
+                        allowed_roles: ruleData.allowed_roles,
+                        rule_data: ruleData.rule_data,
+                        sort_order: index
+                    });
                 }
-                return null;
-            }).filter(Boolean);
+            });
 
             if (updates.length > 0) {
                 const { error } = await supabaseClient.from('major_rules').upsert(updates);
@@ -270,9 +279,10 @@
                 } else {
                     alert('並び順を保存しました。');
                     saveOrderBtn.style.display = 'none';
-                    await loadMajorRules();
+                    await loadMajorRules(); 
                 }
             } else {
+                alert('並び順を保存する対象の、保存済みルールがありません。');
                 saveOrderBtn.style.display = 'none';
             }
         });
@@ -346,6 +356,7 @@
                 rule_data: {
                     totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
                     otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
+                    otherCap: parseFloat(ruleEditor.querySelector('.other-cap').value) || 0,
                     thresholds: {
                         applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
                         non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
