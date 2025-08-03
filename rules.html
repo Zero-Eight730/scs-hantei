@@ -137,7 +137,6 @@
                         <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
                         <select class="rule-type-select">
                             <option value="standard" ${!isTiered ? 'selected' : ''}>標準ルール (グループ指定)</option>
-                            <option value="tiered" ${isTiered ? 'selected' : ''}>優先度ルール (重み2/1指定)</option>
                         </select>
                         <button class="btn-danger remove-major-btn">削除</button>
                     </div>
