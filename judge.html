@@ -95,7 +95,7 @@
             
             const scoresToUpsert = [];
             allPublicRules.forEach(rule => {
-                 const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
+                const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
                 scoresToUpsert.push({ id: currentUser.id, major: rule.name, score: result.score });
             });
             if (scoresToUpsert.length > 0) {
