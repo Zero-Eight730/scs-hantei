@@ -5,8 +5,7 @@ function normalizeName(name) {
     return name.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, '');
 }
 
-function calculateCustomMajor(subjects, rule) {
-    let remainingSubjects = JSON.parse(JSON.stringify(subjects));
+function calculateStandardMajor(subjects, rule) {
     let breakdown = []; 
     let totalScore = 0; 
     let totalCredits = 0; 
@@ -19,7 +18,7 @@ function calculateCustomMajor(subjects, rule) {
     });
 
     (rule.groups || []).forEach(group => {
-        let groupSubjects = remainingSubjects.filter(s => (group.subjects || []).includes(s.name));
+        let groupSubjects = subjects.filter(s => (group.subjects || []).includes(s.name));
         groupSubjects.sort((a, b) => b.grade - a.grade);
         
         let groupCredits = 0;
@@ -54,11 +53,11 @@ function calculateCustomMajor(subjects, rule) {
         });
     });
 
-    const remainingSubjectsFiltered = subjects.filter(s => !includedNames.has(s.name));
-    remainingSubjectsFiltered.forEach(s => s.efficiency = s.grade * (rule.otherWeight || 0));
-    remainingSubjectsFiltered.sort((a, b) => b.efficiency - a.efficiency);
+    const remainingSubjects = subjects.filter(s => !includedNames.has(s.name));
+    remainingSubjects.forEach(s => s.efficiency = s.grade * (rule.otherWeight || 0));
+    remainingSubjects.sort((a, b) => b.efficiency - a.efficiency);
 
-    for (const subject of remainingSubjectsFiltered) {
+    for (const subject of remainingSubjects) {
         if (!rule.totalCap || rule.totalCap === 0 || totalCredits + subject.credits <= rule.totalCap) {
             totalCredits += subject.credits;
             totalScore += subject.grade * subject.credits * rule.otherWeight;
