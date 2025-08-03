@@ -63,7 +63,7 @@
 
         async function initializeApp() {
             try {
-                const { data: rules, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles');
+                const { data: rules, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles').order('sort_order');
                 if (rulesError) throw rulesError;
                 
                 const { data: userData, error: userError } = await supabaseClient.from('user_data').select('target_majors').eq('id', currentUser.id).single();
@@ -78,7 +78,7 @@
                     return;
                 }
 
-                rules.sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(rule => {
+                rules.forEach(rule => {
                     const id = `major-${rule.name.replace(/\s/g, '-')}`;
                     const isChecked = targetMajors.includes(rule.name);
                     const div = document.createElement('div');
@@ -91,7 +91,6 @@
                 console.error('カスタムルール等の読み込み失敗:', e);
             }
         }
-
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
             if(sessionInfo) {
