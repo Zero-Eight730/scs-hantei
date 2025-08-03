@@ -38,7 +38,6 @@
         let currentUser = null;
         let masterSubjects = [];
         let majorRules = [];
-
         const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const customMajorsContainer = document.getElementById('custom-majors-container');
@@ -47,27 +46,14 @@
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'index.html';
-                return null;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return null; }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            
-            if (!isAdmin) {
-                alert('アクセス権限がありません。');
-                window.location.href = 'input.html';
-                return null;
-            }
-
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            
-            document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) { link.style.display = 'inline-block'; }
-            });
+            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
             return { user, isAdmin };
         }
 
@@ -78,7 +64,7 @@
                 Papa.parse(csvText, { header: true, skipEmptyLines: true, complete: (results) => {
                     const uniqueSubjects = new Map();
                     results.data.forEach(row => {
-                        const name = row['科目名'] ? row['科目名'].trim() : '';
+                        const name = row['授業科目名'] ? row['授業科目名'].trim() : '';
                         const credits = parseFloat(row['単位数']);
                         if(name && !isNaN(credits)) {
                             const key = `${name}|${credits}`;
@@ -116,14 +102,15 @@
         }
 
         function createRuleElement(rule, majorIndex, isOwner) {
-            const majorDiv = document.createElement('div');
-            majorDiv.className = 'rule-editor';
-            majorDiv.dataset.majorId = rule.id || `new-${majorIndex}`;
+            const majorDetails = document.createElement('details');
+            majorDetails.className = 'rule-editor';
+            majorDetails.dataset.majorId = rule.id || `new-${majorIndex}`;
+            majorDetails.draggable = true;
+
             let groupsHTML = '';
             (rule.groups || []).forEach((group) => {
                 groupsHTML += createGroupHTML(group, true); // Admin can always edit
             });
-            
             const roles = { arts: '文系', sci_1: '理系Ⅰ', sci_2: '理系Ⅱ', sci_3: '理系Ⅲ' };
             let rolesHTML = '<div class="roles-container"><h5>対象ロール</h5>';
             for (const [roleKey, roleName] of Object.entries(roles)) {
@@ -132,24 +119,26 @@
             }
             rolesHTML += '</div>';
 
-            majorDiv.innerHTML = `
-                <div class="rule-editor-header">
-                    <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名" style="font-size: 1.2em; font-weight: bold;">
-                    <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">この学類を削除</button>
+            majorDetails.innerHTML = `
+                <summary>
+                    <span class="drag-handle">⠿</span>
+                    <input type="text" class="major-name" value="${rule.name || ''}" placeholder="学類名">
+                    <button class="btn-main save-one-rule-btn" style="margin-left:auto;">保存</button>
+                    <button class="btn-danger remove-major-btn" data-id="${rule.id || ''}">削除</button>
+                </summary>
+                <div class="rule-editor-content">
+                    ${rolesHTML}
+                    <div class="rule-settings-grid">
+                        <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
+                        <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
+                        <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
+                        <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
+                    </div>
+                    <div class="groups-container">${groupsHTML}</div>
+                    <button class="btn-add add-group-btn">科目グループを追加</button>
                 </div>
-                <p style="font-size:0.8em; color:#666; text-align:right; margin:0;">作成者: ${rule.userId === currentUser.id ? 'あなた' : '他の管理者'}</p>
-                ${rolesHTML}
-                <div class="rule-settings-grid">
-                    <input type="number" class="total-cap" value="${rule.totalCap || ''}" placeholder="総単位数上限">
-                    <input type="number" class="other-weight" value="${rule.otherWeight || ''}" step="0.1" placeholder="その他重み">
-                    <input type="number" class="pass-threshold" value="${rule.passThreshold || ''}" step="0.1" placeholder="合格最低点(%)">
-                    <input type="number" class="median-threshold" value="${rule.medianThreshold || ''}" step="0.1" placeholder="中央値(%)">
-                </div>
-                <div class="groups-container">${groupsHTML}</div>
-                <button class="btn-add add-group-btn">科目グループを追加</button>
-                <button class="btn-main save-one-rule-btn" style="width:100%; margin-top:10px;">このルールを保存</button>
             `;
-            return majorDiv;
+            return majorDetails;
         }
         
         function createGroupHTML(group, isEditable) {
@@ -157,23 +146,21 @@
             (group.subjects || []).forEach(subjectName => {
                 subjectsHTML += `<div class="subject-tag">${subjectName}<span class="remove-subject-tag">&times;</span></div>`;
             });
-            const disabledAttr = !isEditable ? 'disabled' : '';
             return `
                 <div class="group-box">
                     <h4>科目グループ</h4>
                     <div class="rule-settings-grid">
-                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名" ${disabledAttr}>
-                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み" ${disabledAttr}>
-                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限" ${disabledAttr}>
+                        <input type="text" class="group-name" value="${group.name || ''}" placeholder="グループ名">
+                        <input type="number" class="group-weight" value="${group.weight || ''}" step="0.1" placeholder="重み">
+                        <input type="number" class="group-cap" value="${group.cap || ''}" placeholder="単位数上限">
                     </div>
                     <h5>科目リスト</h5>
                     <div class="subjects-container">${subjectsHTML}</div>
-                    ${isEditable ? `
                     <div class="subject-add-area">
                         <input type="text" class="new-subject-name" placeholder="科目名を入力 or 選択..." list="master-subjects-list">
                         <button type="button" class="btn-add add-subject-to-group-btn">追加</button>
-                    </div>` : ''}
-                    ${isEditable ? '<button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>' : ''}
+                    </div>
+                    <button class="btn-danger remove-group-btn" style="float: right;">このグループを削除</button>
                 </div>
             `;
         }
@@ -187,12 +174,47 @@
         });
         
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
-
         addMajorBtn.addEventListener('click', () => {
             const newRule = { name: '', userId: currentUser.id, groups: [], totalCap: 24, otherWeight: 1.0, passThreshold: 0, medianThreshold: 0, allowed_roles: [] };
             majorRules.push(newRule);
             renderAllRules();
         });
+
+        let draggedItem = null;
+        customMajorsContainer.addEventListener('dragstart', (e) => {
+            draggedItem = e.target.closest('.rule-editor');
+            setTimeout(() => {
+                draggedItem.classList.add('dragging');
+            }, 0);
+        });
+        customMajorsContainer.addEventListener('dragend', (e) => {
+            setTimeout(() => {
+                draggedItem.classList.remove('dragging');
+                draggedItem = null;
+            }, 0);
+        });
+        customMajorsContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(customMajorsContainer, e.clientY);
+            const currentlyDragged = document.querySelector('.dragging');
+            if (afterElement == null) {
+                customMajorsContainer.appendChild(currentlyDragged);
+            } else {
+                customMajorsContainer.insertBefore(currentlyDragged, afterElement);
+            }
+        });
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
 
         customMajorsContainer.addEventListener('click', async (e) => {
             const target = e.target;
