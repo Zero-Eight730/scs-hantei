@@ -49,27 +49,14 @@
 
         async function setupUserInterface() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'index.html';
-                return null;
-            }
+            if (error || !session) { window.location.href = 'index.html'; return null; }
             const user = session.user;
             const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
             const isAdmin = profile && profile.role === 'admin';
-            
-            if (!isAdmin) {
-                alert('アクセス権限がありません。');
-                window.location.href = 'input.html';
-                return null;
-            }
-
-            const mainApp = document.getElementById('main-app');
-            if (mainApp) mainApp.style.display = 'block';
-            if (userDisplay) userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
-            
-            document.querySelectorAll('.admin-only').forEach(link => {
-                if (isAdmin) { link.style.display = 'inline-block'; }
-            });
+            if (!isAdmin) { alert('アクセス権限がありません。'); window.location.href = 'input.html'; return null; }
+            document.getElementById('main-app').style.display = 'block';
+            userDisplay.textContent = `${user.email} でログイン中 [管理者]`;
+            document.querySelectorAll('.admin-only').forEach(link => { if (isAdmin) { link.style.display = 'inline-block'; } });
             return { user, isAdmin };
         }
 
@@ -96,9 +83,9 @@
 
         async function loadMajorRules() {
             try {
-                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data').order('sort_order');
+                const { data, error } = await supabaseClient.from('major_rules').select('id, user_id, name, allowed_roles, rule_data, sort_order').order('sort_order');
                 if (error) throw error;
-                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data }));
+                majorRules = data.map(r => ({ id: r.id, userId: r.user_id, name: r.name, allowed_roles: r.allowed_roles, ...r.rule_data, sort_order: r.sort_order }));
                 renderAllRules();
             } catch (e) { console.error('共通ルールの読み込み失敗:', e); }
         }
@@ -150,6 +137,7 @@
                 ${rolesHTML}
                 <div class="rule-settings-grid">
                     <input type="number" class="total-cap" value="${rule.totalCap || '24'}" placeholder="総単位数上限">
+                    <input type="number" class="other-weight" value="${rule.otherWeight || '1.0'}" step="0.1" placeholder="その他重み">
                 </div>
                 <h5>判定基準 (該当ロール用)</h5>
                 <div class="rule-settings-grid">
@@ -221,10 +209,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             const sessionInfo = await setupUserInterface();
-            if(sessionInfo){
-                currentUser = sessionInfo.user;
-                await initializeApp();
-            }
+            if(sessionInfo){ currentUser = sessionInfo.user; await initializeApp(); }
         });
         
         logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
@@ -256,7 +241,7 @@
             e.preventDefault();
             if (!draggedItem) return;
             draggedItem.classList.remove('dragging');
-            saveOrderBtn.style.display = 'block'; // ★並び替え後に保存ボタンを表示
+            saveOrderBtn.style.display = 'block';
         });
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('.rule-editor:not(.dragging)')];
@@ -285,10 +270,9 @@
                 } else {
                     alert('並び順を保存しました。');
                     saveOrderBtn.style.display = 'none';
-                    await loadMajorRules(); 
+                    await loadMajorRules();
                 }
             } else {
-                alert('保存対象のルールがありません。');
                 saveOrderBtn.style.display = 'none';
             }
         });
