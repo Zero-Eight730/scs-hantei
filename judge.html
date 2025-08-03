@@ -27,7 +27,7 @@
         <div class="panel">
             <h2>判定実行</h2>
             <p style="text-align:center;">「志望学類登録」で選択した学類の移行点を計算します。</p>
-            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">計算を実行</button>
+            <button id="calculate-btn" class="btn-main" style="width:100%; padding: 15px; font-size: 18px;">表示</button>
             <div id="results-container"></div>
         </div>
     </div>
@@ -120,7 +120,7 @@
 
                 const rulesToCalculate = allPublicRules.filter(rule => targetMajors.includes(rule.name));
                 if (rulesToCalculate.length === 0) {
-                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類に対応するルールが見つかりません。「ルール設定」ページでルールが作成されているか確認してください。</p>`;
+                    resultsContainer.innerHTML = `<p style="text-align:center;">選択された志望学類が見つかりません。</p>`;
                 } else {
                     rulesToCalculate.forEach(rule => {
                         const result = rule.type === 'tiered' ? calculateTieredMajor(savedSubjects, rule) : calculateStandardMajor(savedSubjects, rule);
@@ -131,7 +131,7 @@
                  resultsContainer.innerHTML = `<p style="text-align:center; color: var(--danger-color);">${error.message}</p>`;
             } finally {
                 calculateBtn.disabled = false;
-                calculateBtn.textContent = '計算を実行';
+                calculateBtn.textContent = '表示';
             }
         });
         
@@ -190,7 +190,7 @@
                 <div class="card-header"><h4>${majorName || '名称未設定'}</h4></div>
                 ${judgmentHTML}
                 <div class="details-display">${detailsHTML}</div>
-                <div class="breakdown-display"><details><summary>計算内訳</summary>${breakdownHTML}</details></div>
+                <div class="breakdown-display"><details><summary>内訳</summary>${breakdownHTML}</details></div>
             `;
             resultsContainer.appendChild(card);
             
@@ -201,12 +201,12 @@
                     if (!data || data.length === 0) throw new Error('スコア未登録か、比較対象がいません');
                     
                     const rankData = data[0];
-                    const rankLabel = rankData.is_applicable ? '順位 (該当ロール内)' : '順位 (非該当ロール内)';
+                    const rankLabel = rankData.is_applicable ? '順位 (優先区分内)' : '順位 (全区分内)';
                     
                     const rankInfoDiv = document.getElementById(`rank-${safeMajorName}`);
                     if (rankInfoDiv) {
                         rankInfoDiv.innerHTML = `
-                            <div class="detail-item"><span class="label">あなたの状態</span><span class="value">${rankData.is_applicable ? '該当ロール' : '非該当ロール'}</span></div>
+                            <div class="detail-item"><span class="label">区分</span><span class="value">${rankData.is_applicable ? '優先区分' : '全区分'}</span></div>
                             <div class="detail-item"><span class="label">偏差値</span><span class="value">${rankData.deviation_score.toFixed(2)}</span></div>
                             <div class="detail-item" style="border-bottom: none;"><span class="label">${rankLabel}</span><span class="value">${rankData.rank} / ${rankData.total}人</span></div>
                         `;
