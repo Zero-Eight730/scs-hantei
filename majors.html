@@ -63,10 +63,6 @@
 
         async function initializeApp() {
             try {
-                const { data: profileData, error: profileError } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
-                if (profileError) throw profileError;
-                const userRole = profileData ? profileData.role : 'user';
-
                 const { data: rules, error: rulesError } = await supabaseClient.from('major_rules').select('name, allowed_roles');
                 if (rulesError) throw rulesError;
                 
@@ -75,16 +71,14 @@
                 
                 const targetMajors = userData?.target_majors || [];
                 
-                const availableRules = rules.filter(rule => rule.allowed_roles && rule.allowed_roles.includes(userRole));
-
                 majorsCheckboxContainer.innerHTML = '';
-                if (availableRules.length === 0) {
-                    majorsCheckboxContainer.innerHTML = '<p style="text-align:center; color: #666;">あなたのロールで選択可能な学類ルールがありません。管理者がルールを作成するまでお待ちください。</p>';
+                if (rules.length === 0) {
+                    majorsCheckboxContainer.innerHTML = '<p style="text-align:center; color: #666;">利用可能な学類ルールがありません。「ルール設定」ページで作成してください。</p>';
                     saveBtn.disabled = true;
                     return;
                 }
 
-                availableRules.forEach(rule => {
+                rules.sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(rule => {
                     const id = `major-${rule.name.replace(/\s/g, '-')}`;
                     const isChecked = targetMajors.includes(rule.name);
                     const div = document.createElement('div');
@@ -115,7 +109,11 @@
             const selectedMajors = Array.from(document.querySelectorAll('.major-checkbox:checked'))
                 .map(checkbox => checkbox.value);
             
-            const { data: existingData } = await supabaseClient.from('user_data').select('subjects, custom_rules').eq('id', currentUser.id).single();
+            const { data: existingData, error: fetchError } = await supabaseClient.from('user_data').select('subjects, custom_rules').eq('id', currentUser.id).single();
+             if (fetchError && fetchError.code !== 'PGRST116') {
+                alert('データ取得エラー: ' + fetchError.message);
+                return;
+            }
 
             const updatedData = { 
                 id: currentUser.id, 
