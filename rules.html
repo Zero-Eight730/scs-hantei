@@ -424,17 +424,13 @@
                     type,
                     totalCap: parseFloat(ruleEditor.querySelector('.total-cap').value) || 0,
                     otherWeight: parseFloat(ruleEditor.querySelector('.other-weight').value) || 0,
+                    otherCap: parseFloat(ruleEditor.querySelector('.other-cap').value) || 0,
                     thresholds: {
                         applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-app').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-app').value) || 0 },
                         non_applicable: { pass: parseFloat(ruleEditor.querySelector('.pass-threshold-nonapp').value) || 0, median: parseFloat(ruleEditor.querySelector('.median-threshold-nonapp').value) || 0 }
                     },
                     maxPossibleScore: parseFloat(ruleEditor.querySelector('.max-possible-score').value) || 0,
-                    groups: Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box)')).map(groupEl => ({
-                        name: groupEl.querySelector('.group-name').value.trim(),
-                        weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0,
-                        cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0,
-                        subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1))
-                    })),
+                    groups: Array.from(ruleEditor.querySelectorAll('.group-box:not(.combined-limit-box)')).map(groupEl => ({ name: groupEl.querySelector('.group-name').value.trim(), weight: parseFloat(groupEl.querySelector('.group-weight').value) || 0, cap: parseFloat(groupEl.querySelector('.group-cap').value) || 0, subjects: Array.from(groupEl.querySelectorAll('.subject-tag')).map(tag => tag.textContent.slice(0, -1)) })),
                     combinedLimits: Array.from(ruleEditor.querySelectorAll('.combined-limit-box')).map(limitEl => ({
                         name: limitEl.querySelector('.combined-limit-name').value.trim(),
                         cap: parseFloat(limitEl.querySelector('.combined-limit-cap').value) || 0,
