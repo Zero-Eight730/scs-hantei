@@ -26,16 +26,16 @@ function calculateCustomMajor(subjects, rule) {
         groupSubjects.forEach(subject => {
             if (includedNames.has(subject.name)) return;
 
-            // Check total cap
+            // 1. 総単位数上限チェック
             if (rule.totalCap > 0 && totalCredits + subject.credits > rule.totalCap) {
                 return;
             }
-            // Check group cap
+            // 2. グループ個別の上限チェック
             if (group.cap > 0 && groupCredits + subject.credits > group.cap) {
                 return;
             }
 
-            // Check combined limits
+            // 3. グループ合計の上限チェック
             let exceedsCombinedLimit = false;
             (rule.combinedLimits || []).forEach(limit => {
                 if ((limit.groupNames || []).includes(group.name)) {
@@ -46,7 +46,7 @@ function calculateCustomMajor(subjects, rule) {
             });
             if (exceedsCombinedLimit) return;
 
-            // If all checks pass, include the subject
+            // 全てのチェックをクリアした場合、科目を算入
             groupCredits += subject.credits;
             totalCredits += subject.credits;
             totalScore += subject.grade * subject.credits * group.weight;
@@ -54,7 +54,7 @@ function calculateCustomMajor(subjects, rule) {
             breakdown.push({ text: `${subject.name} (${group.name})`, status: 'included'});
             includedNames.add(subject.name);
 
-            // Update combined limits usage
+            // グループ合計の使用単位数を更新
             (rule.combinedLimits || []).forEach(limit => {
                  if ((limit.groupNames || []).includes(group.name)) {
                     combinedLimitUsedCredits[limit.name] += subject.credits;
