@@ -213,7 +213,7 @@
             if(sessionInfo){ currentUser = sessionInfo.user; await initializeApp(); }
         });
         
-        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'index.html'; });
+        logoutBtn.addEventListener('click', async () => { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; });
 
         addMajorBtn.addEventListener('click', () => {
             const newRule = { name: '新しい学類', userId: currentUser.id, groups: [], combinedLimits: [], totalCap: 24, otherWeight: 1.0, otherCap: 0, allowed_roles: [], thresholds: { applicable: { pass: 80, median: 90 }, non_applicable: { pass: 70, median: 80 } }, maxPossibleScore: 2400 };
