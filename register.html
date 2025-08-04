@@ -63,7 +63,7 @@
             if (error) {
                 authMessage.textContent = '登録エラー: ' + error.message;
             } else {
-                alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、ログインページからログインしてください。');
+                alert('確認メールを送信しました。迷惑メールに割り振られる場合があります。');
                 window.location.href = 'login.html';
             }
         });
