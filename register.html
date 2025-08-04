@@ -27,7 +27,7 @@
             <p id="auth-message"></p>
             <hr style="margin: 20px 0;">
             <p style="text-align: center; color: #666;">
-                すでにアカウントをお持ちですか？ <a href="index.html">ログイン</a>
+                すでにアカウントをお持ちですか？ <a href="login.html">ログイン</a>
             </p>
         </div>
     </div>
@@ -64,7 +64,7 @@
                 authMessage.textContent = '登録エラー: ' + error.message;
             } else {
                 alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了し、ログインページからログインしてください。');
-                window.location.href = 'index.html';
+                window.location.href = 'login.html';
             }
         });
     </script>
